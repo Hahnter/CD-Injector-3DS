@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.1 (2026-09-27)
+
+Maintenance release. CIAs are the same as with 1.0.0.
+
+- Built with Python 3.14.7 (was 3.14.3) and PyInstaller 6.22.3 (was 6.19.0), which bring the latest security fixes
+  for the runtime inside the app.
+- The app no longer contains Python's networking modules (sockets and SSL). It never used them; now they aren't
+  there at all, and the download is a little smaller.
+- The command line shows "..." instead of a character some consoles can't display.
+- Unused code removed.
+
 ## 1.0.0 (2026-09-27)
 
 First public release.

@@ -122,5 +122,5 @@ SOFTWARE.
 
 ### Python runtime and libraries (packaged by PyInstaller)
 The Windows app contains Python (PSF License, which also covers the libraries in Python's Windows build such as
-OpenSSL, libffi and bzip2), Tcl/Tk (BSD-style license) and Pillow (MIT-CMU license, which also covers the image
+OpenSSL, libffi and bzip2), Tcl and Tk (BSD-style licenses) and Pillow (MIT-CMU license, which also covers the image
 libraries built into Pillow). Their full license texts are in the `licenses` folder next to the app.

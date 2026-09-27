@@ -60,6 +60,7 @@ VSVersionInfo(
     --add-data ((Join-Path $Repo "resources\cores") + ";resources\cores") `
     --add-data ((Join-Path $Repo "resources\tools\windows") + ";resources\tools\windows") `
     --exclude-module numpy `
+    --exclude-module ssl --exclude-module _ssl --exclude-module socket --exclude-module _socket `
     --distpath $DistPath --workpath (Join-Path $Build "pyinstaller") --specpath $Build `
     cd_injector.py
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
@@ -67,13 +68,8 @@ if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
 # Docs next to the .exe where people will see them, and the licences of everything packaged with it
 $App = "$DistPath\$Name"
 Copy-Item README.md, CHANGELOG.md, LICENSE, THIRD-PARTY-NOTICES.md, SECURITY.md $App
-$Licences = "$App\licenses"
-New-Item -ItemType Directory -Force $Licences | Out-Null
-$PyHome = & $Python -c "import sys; print(sys.base_prefix)"
-$Pillow = & $Python -c "import importlib.metadata as m; d = m.distribution('pillow'); print([str(f.locate()) for f in d.files if f.name == 'LICENSE'][0])"
-Copy-Item "$PyHome\LICENSE.txt" "$Licences\Python-LICENSE.txt"
-Copy-Item "$PyHome\tcl\tk8.6\license.terms" "$Licences\Tcl-Tk-license.txt"
-Copy-Item $Pillow "$Licences\Pillow-LICENSE.txt"
+& $Python scripts\collect_licenses.py "$App\licenses"
+if ($LASTEXITCODE -ne 0) { throw "Couldn't collect the licence texts" }
 
 $Zip = "$DistPath\$Base-windows.zip"
 $Src = "$DistPath\$Base-emulator-source.tar.gz"

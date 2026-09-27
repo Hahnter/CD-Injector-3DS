@@ -28,6 +28,7 @@ def _build(a):
         pct = int(frac * 100)
         if pct != last[0]:
             last[0] = pct
+            msg = msg.replace(chr(0x2026), "...")                # plain dots: every console can show them
             print(f"\r[{pct:3d}%] {msg:<50}", end="", flush=True)
 
     try:

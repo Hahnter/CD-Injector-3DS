@@ -25,4 +25,6 @@ Never attach or link games, BIOS files or CIAs, including ones you made yourself
 Files the user chooses are the app's only untrusted input, so anything that reads them needs size limits and
 must fail with an ordinary error message. `tests/test_security.py` shows the pattern.
 
+Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 By contributing you agree that your code is released under the project's MIT License.

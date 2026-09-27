@@ -409,7 +409,7 @@ def smdh_bytes(icon, short_name, long_name, publisher):
     return data
 
 
-def make_icon(image, fit, short_name, long_name, publisher, system, out_icn, workdir, color=None):
+def make_icon(image, fit, short_name, long_name, publisher, system, out_icn, color=None):
     from PIL import ImageDraw
     if image:
         icon = fit_image(image, (48, 48), fit)

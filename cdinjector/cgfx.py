@@ -243,11 +243,3 @@ def lz11_compress(data):
         out.append(flags)
         out += block
     return bytes(out)
-
-
-def unpack_cbmd(bnr: bytes):
-    """-> (common CGFX, BCWAV bytes) from a .bnr banner file."""
-    if bnr[:4] != b"CBMD":
-        raise CGFXError("not a banner (.bnr) file")
-    cgfx_off, cwav_off = u32(bnr, 8), u32(bnr, 0x84)
-    return lz11_decompress(bnr[cgfx_off:cwav_off or len(bnr)]), (bnr[cwav_off:] if cwav_off else b"")

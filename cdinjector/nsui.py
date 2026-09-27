@@ -80,7 +80,6 @@ class Banner:
             raise DamagedBannerError(f"{name} is damaged: {e}.")
         if require_nsui and PLATE not in texs:
             raise NSUIError(f"{name} is a 3DS banner, but not a console + TV banner from NSUI.")
-        self.wav = d[self.cwav_off:] if self.cwav_off else b""
 
     def validate(self):
         """Check every 3D model in the banner (the main one and each language one) decompresses to a real CGFX.

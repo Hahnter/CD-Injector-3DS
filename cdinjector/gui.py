@@ -511,7 +511,6 @@ class App(tk.Tk):
     def _system_changed(self):
         """A console was picked: unlock the rest of the window and tailor it to that console."""
         system = self.system_choice()
-        self.current_system = system
         self._set_body_enabled(True)
         self._bios_hint = BIOS_HINTS[system] + " " + BIOS_DEFAULT
         self.l_bios.config(text=self._bios_hint, foreground=MUTED)
@@ -617,7 +616,6 @@ class App(tk.Tk):
             self.l_bios.config(foreground=OK, text="✓ " + "  ·  ".join(r["notes"]))
             if not self.v_title.get() and "cue" in r:
                 self.v_title.set(clean_title(r["cue"].stem))
-            self.current_system = r["system"]
             self._game_ok = True
             self.ready = True
         else:
@@ -659,7 +657,6 @@ class App(tk.Tk):
 
     # ---------------------------------------------------------------- preview
     _preview_job = None
-    current_system = "pce"
 
     def _schedule_preview(self):
         if self._preview_job:

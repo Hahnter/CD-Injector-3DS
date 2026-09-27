@@ -287,7 +287,7 @@ def build(opt: BuildOptions, progress=lambda frac, msg: None) -> Path:
             picture = opt.icon_file or opt.image                # an icon picture, else the title screen
             try:
                 opt.info["icon"] = bn.make_icon(picture, opt.icon_fit, title, f"{title} ({info['name']})",
-                                                opt.publisher, system, icon, tmp, color)
+                                                opt.publisher, system, icon, color)
             except PICTURE_ERRORS as e:
                 raise BuildError(f"Couldn't make the icon from the picture: {e}")
         year = opt.year.strip()

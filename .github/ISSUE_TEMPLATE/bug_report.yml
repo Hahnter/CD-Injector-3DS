@@ -1,0 +1,36 @@
+name: Bug report
+description: The app did something wrong or showed an error.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a game that doesn't run well on the 3DS, use the compatibility report instead.
+        Please don't attach or link games, BIOS files or CIAs.
+  - type: input
+    id: version
+    attributes:
+      label: CD Injector 3DS version
+      description: Shown in the window title.
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What you did
+      description: The console, the options you chose, and the steps that lead to the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: What happened
+      description: The full error message, or what you saw instead of what you expected.
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11

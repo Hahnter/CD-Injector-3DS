@@ -1,0 +1,413 @@
+diff --git a/src/3ds/3dsfiles.cpp b/src/3ds/3dsfiles.cpp
+index bb015b2..1d835fd 100644
+--- a/src/3ds/3dsfiles.cpp
++++ b/src/3ds/3dsfiles.cpp
+@@ -144,6 +144,25 @@ char *file3dsGetCurrentDir(void)
+ }
+ 
+ 
++//----------------------------------------------------------------------
++// Sets the current directory to an absolute path.
++// ROM loading builds the full path as (currentDir + fileName), so the
++// directory must end with a '/'.
++//----------------------------------------------------------------------
++void file3dsSetCurrentDir(const char *dir)
++{
++    strncpy(currentDir, dir, _MAX_PATH - 1);
++    currentDir[_MAX_PATH - 1] = 0;
++
++    int len = strlen(currentDir);
++    if (len > 0 && len < _MAX_PATH - 1 && currentDir[len - 1] != '/')
++    {
++        currentDir[len] = '/';
++        currentDir[len + 1] = 0;
++    }
++}
++
++
+ //----------------------------------------------------------------------
+ // Go up to the parent directory.
+ //----------------------------------------------------------------------
+diff --git a/src/3ds/3dsfiles.h b/src/3ds/3dsfiles.h
+index 5c22579..1f02cf0 100644
+--- a/src/3ds/3dsfiles.h
++++ b/src/3ds/3dsfiles.h
+@@ -28,6 +28,13 @@ const char * file3dsReplaceFilenameExtension (char *fileName, const char *extens
+ char *file3dsGetCurrentDir(void);
+ 
+ 
++//----------------------------------------------------------------------
++// Sets the current directory to an absolute path (adds a trailing '/').
++// Used by the forwarder auto-boot path.
++//----------------------------------------------------------------------
++void file3dsSetCurrentDir(const char *dir);
++
++
+ //----------------------------------------------------------------------
+ // Go up to the parent directory.
+ //----------------------------------------------------------------------
+diff --git a/src/3ds/3dsmain.cpp b/src/3ds/3dsmain.cpp
+index e07da13..53a1e15 100644
+--- a/src/3ds/3dsmain.cpp
++++ b/src/3ds/3dsmain.cpp
+@@ -6,6 +6,7 @@
+ #include <vector>
+ 
+ #include <unistd.h>
++#include <sys/stat.h>
+ #include <string.h>
+ #include <stdio.h>
+ #include <3ds.h>
+@@ -42,6 +43,17 @@ const char *romFileName = 0;
+ char romFileNameFullPath[_MAX_PATH];
+ char romFileNameLastSelected[_MAX_PATH];
+ 
++// Set when this title carries romfs:/boot.txt (a per-game forwarder CIA).
++bool forwarderMode = false;
++
++// When the game itself is embedded in RomFS (read-only), saves, save states,
++// cheats and per-game settings go here instead of next to the ROM.
++char forwarderSaveDir[_MAX_PATH] = "";
++
++// The normal app's remembered folder / ROM, restored when saving global settings.
++char forwarderBrowserDir[_MAX_PATH] = "";
++char forwarderBrowserRom[_MAX_PATH] = "";
++
+ //-------------------------------------------------------
+ // Clear screen with logo.
+ //-------------------------------------------------------
+@@ -169,6 +181,11 @@ bool emulatorLoadRom()
+     char romFileNameFullPath2[_MAX_PATH];
+     strncpy(romFileNameFullPath2, romFileNameFullPath, _MAX_PATH - 1);
+ 
++    // The game loads from romFileNameFullPath2; every save-type file is
++    // derived from romFileNameFullPath, so point that at a writable folder.
++    if (forwarderSaveDir[0])
++        snprintf(romFileNameFullPath, _MAX_PATH, "%s%s", forwarderSaveDir, romFileName);
++
+     // Load up the new ROM settings first.
+     //
+     emulatorSettingsLoad(false, true, false);
+@@ -321,7 +338,27 @@ bool emulatorSettingsSave(bool includeGlobalSettings, bool includeGameSettings,
+ 
+     if (includeGlobalSettings)
+     {
+-        impl3dsReadWriteSettingsGlobal(true);
++        if (forwarderMode)
++        {
++            // The global config is shared with the normal emulator app. Keep
++            // its remembered folder / ROM instead of the forwarder's game path.
++            char dir[_MAX_PATH], rom[_MAX_PATH];
++            strncpy(dir, file3dsGetCurrentDir(), _MAX_PATH - 1);
++            dir[_MAX_PATH - 1] = 0;
++            strncpy(rom, romFileNameLastSelected, _MAX_PATH - 1);
++            rom[_MAX_PATH - 1] = 0;
++
++            file3dsSetCurrentDir(forwarderBrowserDir);
++            strncpy(romFileNameLastSelected, forwarderBrowserRom, _MAX_PATH - 1);
++            impl3dsReadWriteSettingsGlobal(true);
++
++            file3dsSetCurrentDir(dir);
++            strncpy(romFileNameLastSelected, rom, _MAX_PATH - 1);
++        }
++        else
++        {
++            impl3dsReadWriteSettingsGlobal(true);
++        }
+     }
+ 
+     if (showMessage)
+@@ -470,18 +507,23 @@ void menuPause()
+     menu3dsAddTab(getText("设置"), optionMenu);
+     menu3dsAddTab(getText("控制"), controlsMenu);
+     menu3dsAddTab(getText("金手指"), cheatMenu);
+-    menu3dsAddTab(getText("选择ROM"), fileMenu);
++    // A forwarder only ever runs its own game, so it has no file browser.
++    if (!forwarderMode)
++        menu3dsAddTab(getText("选择ROM"), fileMenu);
+ 
+     impl3dsCopyMenuToOrFromSettings(false);
+ 
+-    int previousFileID = fileFindLastSelectedFile();
+     menu3dsSetTabSubTitle(0, NULL);
+     menu3dsSetTabSubTitle(1, NULL);
+     menu3dsSetTabSubTitle(2, NULL);
+     menu3dsSetTabSubTitle(3, NULL);
+-    menu3dsSetTabSubTitle(4, file3dsGetCurrentDir());
+-    if (previousFileID >= 0)
+-        menu3dsSetSelectedItemIndexByID(4, previousFileID);
++    if (!forwarderMode)
++    {
++        int previousFileID = fileFindLastSelectedFile();
++        menu3dsSetTabSubTitle(4, file3dsGetCurrentDir());
++        if (previousFileID >= 0)
++            menu3dsSetSelectedItemIndexByID(4, previousFileID);
++    }
+     menu3dsSetCurrentMenuTab(0);
+     menu3dsSetTransferGameScreen(true);
+ 
+@@ -822,7 +864,12 @@ void emulatorFinalize()
+ #ifndef EMU_RELEASE
+     printf("romfsExit:\n");
+ #endif
+-    romfsExit();
++    // A forwarder's CD image lives in RomFS and the core keeps its track
++    // files open. Unmounting here would make newlib's exit-time fclose()
++    // seek through a dead devoptab (data abort at 0x18), so leave it
++    // mounted; the process is ending anyway.
++    if (!forwarderMode)
++        romfsExit();
+ 
+ #ifndef EMU_RELEASE
+     printf("hidExit:\n");
+@@ -1065,6 +1112,118 @@ void emulatorLoop()
+ }
+ 
+ 
++//----------------------------------------------------------------------
++// Forwarder auto-boot.
++//
++// If the running title carries "romfs:/boot.txt" whose first line is the
++// absolute SD path of a ROM / CD image, load that game directly and skip
++// the file-selection menu. Returns true if the game was loaded.
++//
++// boot.txt example (single line):
++//   sdmc:/roms/pce/Rondo/Rondo.cue
++//----------------------------------------------------------------------
++static char forwarderRomName[_MAX_PATH];
++
++static void forwarderShowError(const char *title, const char *line1, const char *path)
++{
++    static char text[_MAX_PATH + 256];
++    snprintf(text, sizeof(text), "%s\n%s", line1, path);
++    menu3dsShowDialog(title, text, Themes[settings3DS.Theme].dialogColorWarn, optionsForOk);
++    menu3dsHideDialog();
++}
++
++bool tryAutoBootFromRomfs()
++{
++    FILE *fp = fopen("romfs:/boot.txt", "r");
++    if (!fp)
++        return false;
++
++    char line[_MAX_PATH];
++    char *got = fgets(line, sizeof(line), fp);
++    fclose(fp);
++    if (!got)
++        return false;
++
++    // Trim trailing CR/LF/whitespace.
++    int n = strlen(line);
++    while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r' || line[n - 1] == ' ' || line[n - 1] == '\t'))
++        line[--n] = 0;
++    if (n == 0)
++        return false;
++
++    forwarderMode = true;
++
++    // The menu isn't up yet, but the loading dialog draws over it.
++    menu3dsClearMenuTabs();
++    menu3dsAddTab(getText("选项"), emulatorNewMenu);
++    menu3dsSetCurrentMenuTab(0);
++    menu3dsSetTransferGameScreen(false);
++
++    FILE *game = fopen(line, "rb");
++    if (!game)
++    {
++        forwarderShowError("Game not found", "Check the game is on your SD card at:", line);
++        forwarderMode = false;
++        return false;
++    }
++    fclose(game);
++
++    // Split into directory (with trailing slash) + bare filename.
++    char *slash = strrchr(line, '/');
++    if (!slash)
++    {
++        forwarderMode = false;
++        return false;
++    }
++
++    strncpy(forwarderRomName, slash + 1, _MAX_PATH - 1);
++    forwarderRomName[_MAX_PATH - 1] = 0;
++    slash[1] = 0;
++
++    strncpy(forwarderBrowserDir, file3dsGetCurrentDir(), _MAX_PATH - 1);
++    strncpy(forwarderBrowserRom, romFileNameLastSelected, _MAX_PATH - 1);
++
++    file3dsSetCurrentDir(line);
++    romFileName = forwarderRomName;
++    strncpy(romFileNameLastSelected, forwarderRomName, _MAX_PATH - 1);
++
++    // Game embedded in the CIA: keep saves on the SD card, in a folder
++    // named after the game file (e.g. sdmc:/emus3ds/saves/Sonic CD/).
++    if (strncmp(line, "romfs:/", 7) == 0)
++    {
++        char stem[_MAX_PATH];
++        strncpy(stem, forwarderRomName, _MAX_PATH - 1);
++        stem[_MAX_PATH - 1] = 0;
++        char *dot = strrchr(stem, '.');
++        if (dot)
++            *dot = 0;
++
++        mkdir("sdmc:/emus3ds", 0777);
++        mkdir("sdmc:/emus3ds/saves", 0777);
++        snprintf(forwarderSaveDir, _MAX_PATH - 1, "sdmc:/emus3ds/saves/%s", stem);
++        mkdir(forwarderSaveDir, 0777);
++        strcat(forwarderSaveDir, "/");
++    }
++
++    // emulatorLoadRom() reads (currentDir + romFileName), loads the game,
++    // and sets emulatorState = EMUSTATE_EMULATE on success.
++    if (!emulatorLoadRom())
++    {
++        char fullPath[_MAX_PATH];
++        snprintf(fullPath, sizeof(fullPath), "%s%s", file3dsGetCurrentDir(), forwarderRomName);
++        forwarderShowError("Could not load game", "Is the BIOS / system card installed?", fullPath);
++        forwarderMode = false;
++        forwarderSaveDir[0] = 0;
++        return false;
++    }
++
++    menu3dsHideMenu();
++    consoleInit(screenSettings.SecondScreen, NULL);
++    consoleClear();
++    return true;
++}
++
++
+ //---------------------------------------------------------
+ // Main entrypoint.
+ //---------------------------------------------------------
+@@ -1073,10 +1232,25 @@ int main()
+     emulatorInitialize();
+     clearScreenWithLogo();
+ 
++    // The default UI language is Chinese (0), which needs /emus3ds/gbk.bin
++    // to render. Without that font the text is unreadable, so use English.
++    if (settings3DS.Language == 0)
++    {
++        FILE *gbk = fopen("/emus3ds/gbk.bin", "rb");
++        if (gbk)
++            fclose(gbk);
++        else
++            settings3DS.Language = 1;
++    }
++
+     ui3dsSetFont(settings3DS.Font, true);
+     ui3dsSetLanguage(settings3DS.Language, true);
+     gbk3dsLoadGBKImage();
+-    menuSelectFile();
++
++    // Forwarder CIAs boot straight into their game; otherwise (or if the
++    // game fails to load) show the normal file browser.
++    if (!tryAutoBootFromRomfs())
++        menuSelectFile();
+ 
+     while (aptMainLoop()) {
+         switch (emulator.emulatorState) {
+@@ -1096,6 +1270,11 @@ int main()
+ 
+     fileList.clear();
+ 
++    // Normally SRAM / backup RAM is only written when the pause menu opens.
++    // A forwarder is often closed straight from HOME, so save on the way out.
++    if (forwarderMode && emulator.emulatorState > 0)
++        impl3dsEmulationPaused();
++
+     if (emulator.emulatorState > 0 && settings3DS.AutoSavestate)
+         impl3dsLoadState(0);
+ 
+diff --git a/src/cores/picodrive/3ds/3dsimpl.cpp b/src/cores/picodrive/3ds/3dsimpl.cpp
+index d06bf65..6dba70b 100644
+--- a/src/cores/picodrive/3ds/3dsimpl.cpp
++++ b/src/cores/picodrive/3ds/3dsimpl.cpp
+@@ -603,13 +603,17 @@ void impl3dsOutputSoundSamples(int numberOfSamples, short *leftSamples, short *r
+ }
+ 
+ 
++// romfs:/bios/ entries come first so forwarder CIAs can carry their own BIOS.
+ static const char * const biosfiles_us[] = {
++	"romfs:/bios/bios_CD_U.bin",
+ 	"sdmc:/emus3ds/picodrive_3ds/bios/us_scd2_9306.bin", "sdmc:/emus3ds/picodrive_3ds/bios/SegaCDBIOS9303.bin", "sdmc:/emus3ds/picodrive_3ds/bios/us_scd1_9210.bin", "sdmc:/emus3ds/picodrive_3ds/bios/bios_CD_U.bin"
+ };
+ static const char * const biosfiles_eu[] = {
++	"romfs:/bios/bios_CD_E.bin",
+ 	"sdmc:/emus3ds/picodrive_3ds/bios/eu_mcd2_9306.bin", "sdmc:/emus3ds/picodrive_3ds/bios/eu_mcd2_9303.bin", "sdmc:/emus3ds/picodrive_3ds/bios/eu_mcd1_9210.bin", "sdmc:/emus3ds/picodrive_3ds/bios/bios_CD_E.bin"
+ };
+ static const char * const biosfiles_jp[] = {
++	"romfs:/bios/bios_CD_J.bin",
+ 	"sdmc:/emus3ds/picodrive_3ds/bios/jp_mcd2_921222.bin", "sdmc:/emus3ds/picodrive_3ds/bios/jp_mcd1_9112.bin", "sdmc:/emus3ds/picodrive_3ds/bios/jp_mcd1_9111.bin", "sdmc:/emus3ds/picodrive_3ds/bios/bios_CD_J.bin"
+ };
+ 
+@@ -676,8 +680,17 @@ void setSampleRate(bool preserveState)
+ // This is called when a ROM needs to be loaded and the
+ // emulator engine initialized.
+ //---------------------------------------------------------
++extern bool forwarderMode;
++
+ bool impl3dsLoadROM(char *romFilePath)
+ {
++    // Forwarders emulate a Sega CD with no RAM cartridge. PicoDrive's RAM cart
++    // starts blank every power-on, so games like Sonic CD would nag
++    // "RAM cartridge is not initialized"; the internal backup RAM comes
++    // pre-formatted and is what saves use instead.
++    if (forwarderMode)
++        PicoIn.opt &= ~POPT_EN_MCD_RAMCART;
++
+     // ** Load ROM
+     PicoPatchUnload();
+ 	enum media_type_e media_type;
+diff --git a/src/cores/temperpce/3ds/3dsimpl.cpp b/src/cores/temperpce/3ds/3dsimpl.cpp
+index 14c6904..2bfa324 100644
+--- a/src/cores/temperpce/3ds/3dsimpl.cpp
++++ b/src/cores/temperpce/3ds/3dsimpl.cpp
+@@ -1181,6 +1181,8 @@ void impl3dsInitializeDefaultSettingsGlobal()
+ // settings. This method is called everytime a game is
+ // loaded, but the configuration file does not exist.
+ //---------------------------------------------------------
++extern bool forwarderMode;
++
+ void impl3dsInitializeDefaultSettingsByGame()
+ {
+ 	settings3DS.MaxFrameSkips = 1;
+@@ -1190,7 +1192,10 @@ void impl3dsInitializeDefaultSettingsByGame()
+     settings3DS.OtherOptions[SETTINGS_IDLELOOPPATCH] = 0;
+     settings3DS.OtherOptions[SETTINGS_SOFTWARERENDERING] = 0;
+     settings3DS.OtherOptions[SETTINGS_BIOS] = 0;
+-    settings3DS.OtherOptions[SETTINGS_CPUCORE] = 1;
++    // Forwarders default to the compatible CPU core: the fast core is known
++    // to freeze in CD games such as Castlevania: Rondo of Blood. It can still
++    // be switched in the menu and is remembered per game.
++    settings3DS.OtherOptions[SETTINGS_CPUCORE] = forwarderMode ? 2 : 1;
+ }
+ 
+ 
+diff --git a/src/cores/temperpce/memory.c b/src/cores/temperpce/memory.c
+index 16747f6..4aff676 100755
+--- a/src/cores/temperpce/memory.c
++++ b/src/cores/temperpce/memory.c
+@@ -1306,12 +1306,19 @@ s32 load_syscard()
+ 
+   //printf("loading syscard %s\n", syscard_name);
+ 
+-  //sprintf(syscard_path, "%s%csyscards%c%s.bin", config.main_path,
+-  // DIR_SEPARATOR_CHAR, DIR_SEPARATOR_CHAR, syscard_name);
+-  sprintf(syscard_path, "/emus3ds/temperpce_3ds/syscards/%s.bin", syscard_name);
+-
++  // Forwarder CIAs can carry their own system card in RomFS.
++  sprintf(syscard_path, "romfs:/syscards/%s.pce", syscard_name);
+   rom_file = fopen(syscard_path, "rb");
+ 
++  if(rom_file == NULL)
++  {
++    //sprintf(syscard_path, "%s%csyscards%c%s.bin", config.main_path,
++    // DIR_SEPARATOR_CHAR, DIR_SEPARATOR_CHAR, syscard_name);
++    sprintf(syscard_path, "/emus3ds/temperpce_3ds/syscards/%s.bin", syscard_name);
++
++    rom_file = fopen(syscard_path, "rb");
++  }
++
+   if(rom_file == NULL)
+   {
+     //sprintf(syscard_path, "%s%csyscards%c%s.pce", config.main_path,

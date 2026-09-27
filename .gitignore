@@ -1,0 +1,50 @@
+# Copyrighted material: never commit
+*.cue
+*.bin
+*.iso
+*.chd
+*.pce
+bios/
+roms/
+
+# Built CIAs / banners
+*.cia
+*.3dsx
+*.bnr
+*.icn
+*.bcwav
+
+# Build outputs
+build/
+dist/
+__pycache__/
+*.pyc
+*.spec
+
+# resources/ is filled by scripts/build_emulators.sh (published as release assets)
+resources/cores/
+resources/tools/
+
+.DS_Store
+Thumbs.db
+
+# Nintendo Virtual Console banner models imported from NSUI: never commit or share
+resources/banner_templates/
+
+# retired experiments (the 3D console banners): not part of the app
+retired/
+
+# Secrets and personal files: never commit
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.log
+settings.json
+
+# local virtual environment
+.venv/
+
+# half-written CIAs from an interrupted build
+*.part

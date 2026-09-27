@@ -1,0 +1,9 @@
+# What is needed to package the Windows app (scripts/build_windows.ps1) on top of requirements.txt.
+-r requirements.txt
+pyinstaller==6.19.0
+pyinstaller-hooks-contrib==2026.4
+altgraph==0.17.5
+pefile==2024.8.26
+packaging==26.0
+setuptools==84.0.0
+pywin32-ctypes==0.2.3; sys_platform == "win32"

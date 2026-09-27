@@ -1,0 +1,2 @@
+# What the app needs to run from source. Exact versions, so every build uses code that has been looked at.
+Pillow==12.3.0

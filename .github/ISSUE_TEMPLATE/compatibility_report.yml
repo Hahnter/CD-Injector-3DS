@@ -1,0 +1,61 @@
+name: Compatibility report
+description: Tell us how a game ran from a CIA made with CD Injector 3DS (working or not).
+title: "[Compat] <game title> (<system>)"
+labels: ["compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing. Please don't attach or link games, BIOS files or CIAs.
+  - type: input
+    id: game
+    attributes:
+      label: Game and region
+      placeholder: Sonic CD (USA)
+    validations:
+      required: true
+  - type: dropdown
+    id: system
+    attributes:
+      label: System
+      options:
+        - PC Engine CD / TurboGrafx-CD
+        - Sega CD / Mega CD
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Runs well
+        - Runs with problems
+        - Doesn't start or crashes
+    validations:
+      required: true
+  - type: dropdown
+    id: hardware
+    attributes:
+      label: 3DS model
+      options:
+        - Old 3DS / 3DS XL / 2DS
+        - New 3DS / New 3DS XL / New 2DS XL
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: CD Injector 3DS version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: core
+    attributes:
+      label: CPU core (PC Engine CD only)
+      placeholder: Compatible (default) or Fast
+  - type: textarea
+    id: details
+    attributes:
+      label: What happened
+      description: Where it froze or glitched, whether CD audio and saves work, anything else worth knowing.

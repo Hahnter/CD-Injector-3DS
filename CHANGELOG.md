@@ -1,0 +1,43 @@
+# Changelog
+
+## 1.0.0 (2026-09-27)
+
+First public release.
+
+### Fixed
+- Games, titles and folders with non-English names now work. Before, a Japanese title, a Japanese Windows user
+  name or an output folder with letters outside the Windows code page made makerom fail, and an accented or
+  Japanese title turned into "???" under the Home Menu icon. makerom and bannertool now run inside the work folder
+  with plain names, the icon file is written by the app itself (titles in any language), and names inside the CIA
+  are plain ASCII.
+- A CIA is saved under its real name only once it is complete, so a failed build never leaves a half-written CIA.
+- The command line no longer stops with an error when it prints a title or path its console can't show.
+- A damaged picture that Pillow reports with an unusual error is now a normal error message.
+
+### Changed
+- makerom is now the official v0.18.4 release (MIT) instead of an older v0.15 copy from the emus3ds repository.
+  v0.15 counted the emulator's uninitialised memory twice, which reserved an extra 4 MB (PicoDrive) or 6.5 MB (TemperPCE)
+  of the 3DS's memory for nothing. Everything else in the CIA (RomFS, icon, banner, program code) is byte-identical.
+- The picture, banner sound and plate font are checked before the game is copied, so a bad file is reported at
+  once. A banner sound must be a PCM `.wav` of at most 3 seconds, or a `.bcwav`.
+- The Windows release includes the Python, Tcl/Tk and Pillow licence texts (`licenses\`), carries version details
+  on the .exe, and ships the emulator source archive next to the zip with both in `SHA256SUMS.txt`.
+- `--version` on the command line.
+
+## 0.5.0
+
+- The banner is the title screen in a frame of any color, with the Virtual Console plate below. The earlier 3D
+  console banners were removed.
+- Banners and icons exported from NSUI can be used on a CD game's CIA, with the blank title plate drawn in.
+- New five-step window with a help page, and a "More options" dialog (icon fit, banner sound, plate font).
+- Security hardening: size and structure checks on every file the user picks, fuzz tests, hidden-character scan.
+
+## 0.2.0
+
+- Castlevania: Rondo of Blood froze after its opening cutscene with TemperPCE's fast CPU core; CIAs now default to
+  the compatible core.
+- Simpler window: game, BIOS, details, create.
+
+## 0.1.0
+
+- First working build: per-game CIAs for PC Engine CD and Sega CD with the game and BIOS inside.

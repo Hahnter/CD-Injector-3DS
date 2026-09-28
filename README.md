@@ -12,7 +12,7 @@ gets its own Home Menu icon and banner, and everything it needs is packed inside
 ## Quick start
 
 1. Download `CD-Injector-3DS-vX.Y.Z-windows.zip` from [Releases](https://github.com/Hahnter/CD-Injector-3DS/releases/latest),
-   unzip it and run **CD Injector 3DS.exe**.
+   unzip it and run **CD-Injector-3DS.exe**.
 2. Pick the console, then your game's `.cue` file and the BIOS.
 3. Press **Create CIA**.
 4. Copy the `.cia` to your SD card and install it with FBI.

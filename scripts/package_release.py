@@ -3,7 +3,7 @@
 
     package_release.py <app folder> <zip to make> <other release file> <SHA256SUMS.txt>
 
-The zip holds the app folder itself (so it unzips into "CD Injector 3DS/") with "/" in every name, as the zip
+The zip holds the app folder itself (so it unzips into "CD-Injector-3DS/") with "/" in every name, as the zip
 format requires, and the checksum file has one "<sha256>  <file name>" line per file with "\n" line ends.
 """
 

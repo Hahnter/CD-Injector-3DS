@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.3 (2026-09-28)
+
+- The program is now `CD-Injector-3DS.exe` in a `CD-Injector-3DS` folder (it was `CD Injector 3DS.exe`), so the
+  command line no longer needs quotes around it. The app's name, your settings and the CIAs it makes are unchanged.
+  If you pinned the old .exe to the taskbar or Start menu, pin the new one instead.
+
 ## 1.0.2 (2026-09-28)
 
 - Fixed: with no picture chosen, the banner's "PC ENGINE CD" label was wider than the screen it sits on and got

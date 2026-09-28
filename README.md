@@ -1,7 +1,27 @@
 # CD Injector 3DS
 
+[![Latest release](https://img.shields.io/github/v/release/Hahnter/CD-Injector-3DS)](https://github.com/Hahnter/CD-Injector-3DS/releases/latest)
+[![Checks](https://github.com/Hahnter/CD-Injector-3DS/actions/workflows/ci.yml/badge.svg)](https://github.com/Hahnter/CD-Injector-3DS/actions/workflows/ci.yml)
+[![License: MIT (app code)](https://img.shields.io/badge/license-MIT%20(app%20code)-blue)](LICENSE)
+
 Turn **PC Engine CD / TurboGrafx-CD** and **Sega CD / Mega CD** games into installable **3DS CIAs**. Each game
 gets its own Home Menu icon and banner, and everything it needs is packed inside the CIA.
+
+![The CD Injector 3DS window](docs/screenshot.png)
+
+## Quick start
+
+1. Download `CD-Injector-3DS-vX.Y.Z-windows.zip` from [Releases](https://github.com/Hahnter/CD-Injector-3DS/releases/latest),
+   unzip it and run **CD Injector 3DS.exe**.
+2. Pick the console, then your game's `.cue` file and the BIOS.
+3. Press **Create CIA**.
+4. Copy the `.cia` to your SD card and install it with FBI.
+
+Nothing gets installed on your PC. The app is for Windows; on Linux or macOS you can run the command line version
+from source (see [Building from source](#building-from-source)). The rest of this page explains each step and every
+option.
+
+## Features
 
 - **Standalone emulators** (TemperPCE and PicoDrive from emus3ds), so RetroArch isn't needed. The CIAs run on the
   original 3DS and 2DS as well as the New models.
@@ -14,14 +34,8 @@ gets its own Home Menu icon and banner, and everything it needs is packed inside
 NSUI (New Super Ultimate Injector) makes CIAs for cartridge consoles but not for these two CD systems. This app
 covers that gap.
 
-**Status: v1.0.0.** Tested on real hardware with Sonic CD (Sega CD) and Castlevania: Rondo of Blood (PC Engine CD),
-with both banner styles. See [Compatibility](#compatibility).
-
-## Download
-
-Get the latest `CD-Injector-3DS-vX.Y.Z-windows.zip` from the [Releases](../../releases) page, unzip it anywhere
-and run **CD Injector 3DS.exe**. Nothing is installed. The app is Windows only; on Linux or macOS you can run the
-command line version from source (see [Building from source](#building-from-source)).
+**Status:** stable. Tested on real hardware with Sonic CD (Sega CD) and Castlevania: Rondo of Blood (PC Engine CD),
+with both banner styles. See [Compatibility](#compatibility) and the [FAQ](#faq).
 
 ## What you need
 
@@ -129,7 +143,41 @@ real hardware:
 | Castlevania: Rondo of Blood (English patch v1.03) | PC Engine CD | Runs | Froze after the opening cutscene with TemperPCE's fast CPU core; runs with the compatible core, which is the default for CIAs from this app. |
 
 Tried another game? Please open a
-[compatibility report](../../issues/new?template=compatibility_report.yml) with the result, even if it didn't work.
+[compatibility report](https://github.com/Hahnter/CD-Injector-3DS/issues/new?template=compatibility_report.yml) with the result, even if it didn't work.
+
+## FAQ
+
+**Does it work on an original 3DS or 2DS?**
+The emulators (from emus3ds) run on every 3DS and 2DS model. How smoothly a game runs depends on the game, and the
+New models have more headroom. Please say which model you used in a compatibility report.
+
+**How is this different from a RetroArch forwarder?**
+There's nothing to set up on the SD card. The emulator, the game and the BIOS are all inside the one CIA, and it
+boots straight into the game.
+
+**Can I use a `.chd`, `.iso` or MP3/OGG version of the game?**
+Convert a `.chd` to `.cue` + `.bin` first (see [What you need](#what-you-need)). A `.cue` with `.bin` tracks is
+the format that has been tested.
+
+**Where do my saves go?**
+To `sdmc:/emus3ds/saves/<game>/` on the SD card, so they survive reinstalling the CIA or making it again.
+
+**A game freezes or glitches. What can I try?**
+Touch the bottom screen to open the emulator menu. For PC Engine CD games, switch the **CPU Core** setting; it's
+remembered per game. If that doesn't help, please file a
+[compatibility report](https://github.com/Hahnter/CD-Injector-3DS/issues/new?template=compatibility_report.yml).
+
+**Windows or my antivirus warns about the app. Is it safe?**
+The app isn't code-signed, so SmartScreen warns the first time (choose **More info**, then **Run anyway**).
+Some antivirus programs also flag apps packaged with PyInstaller by mistake. Compare the download with
+`SHA256SUMS.txt` from the release, and the full source is in this repository if you'd rather build it yourself.
+
+**How do I remove a game I installed?**
+In FBI, open **Titles**, pick the game and choose **Delete Title**. You can also use **System Settings > Data
+Management** on the 3DS. Its saves stay on the SD card in the folder above.
+
+**Can I share the CIAs I make?**
+No. They contain the game and the BIOS.
 
 ## Privacy and security
 

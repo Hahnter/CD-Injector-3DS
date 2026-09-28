@@ -226,8 +226,10 @@ def draw_vc_banner(image, title, year, system, color=None, font_file=None):
     if not image:
         label = {"pce": "PC ENGINE CD", "segacd": "SEGA CD"}.get(system, "")
         dark = 0.3 * top[0] + 0.59 * top[1] + 0.11 * top[2] < 90          # keep the label readable on a dark frame
-        ImageDraw.Draw(out).text(((sx0 + sx1) // 2, (sy0 + sy1) // 2), label, font=_font(11 * S),
-                                 fill=(175, 175, 185, 255) if dark else top + (255,), anchor="mm")
+        d = ImageDraw.Draw(out)
+        font, label = _fit_text(d, label, (sx1 - sx0) - 10 * S, [s * S for s in (11, 10, 9, 8, 7)])  # fits the screen
+        d.text(((sx0 + sx1) // 2, (sy0 + sy1) // 2), label, font=font,
+               fill=(175, 175, 185, 255) if dark else top + (255,), anchor="mm")
 
     # the Virtual Console plate, 204 x 51 at the bottom
     pw, ph = 204 * S, 51 * S

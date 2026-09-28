@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.2 (2026-09-28)
+
+- Fixed: with no picture chosen, the banner's "PC ENGINE CD" label was wider than the screen it sits on and got
+  cut off at both edges. It now shrinks to fit. Only CIAs made without a picture are affected; remake one to get
+  the fixed banner (the title ID stays the same, so it installs over the old one and keeps its saves).
+- The README has a screenshot, a quick start and an FAQ.
+
 ## 1.0.1 (2026-09-27)
 
 Maintenance release. CIAs are the same as with 1.0.0.

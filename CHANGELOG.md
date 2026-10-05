@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.0 (unreleased)
+## 1.1.0 (2026-10-06)
 
 Banners and icons now match the ones NSUI makes, so a CD game looks at home next to your GBA, NES and Genesis games
 on the Home Menu. Remake a CIA to get the new banner; the title ID stays the same, so it installs over the old one and

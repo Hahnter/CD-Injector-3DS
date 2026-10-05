@@ -120,7 +120,9 @@ def _screen(cg, meshes, texs):
     top = next((y for y in range(fy0, fy1) if not is_ring(cx, y)), None)
     if top is None:
         return None
-    bottom = next((y for y in range(top, fy1) if is_ring(cx, y)), fy1)
+    # the bottom is a whole row of the ring's colour: a dark texel in the old game's picture can match it on its own
+    across = [fx0 + (fx1 - fx0) * k // 8 for k in range(2, 7)]
+    bottom = next((y for y in range(top, fy1) if all(is_ring(x, y) for x in across)), fy1)
     cy = (top + bottom) // 2
     left = next((x for x in range(fx0, fx1) if not is_ring(x, cy)), fx0)
     right = next((x + 1 for x in range(fx1 - 1, fx0, -1) if not is_ring(x, cy)), fx1)

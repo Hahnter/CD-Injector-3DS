@@ -22,6 +22,8 @@ keeps its saves.
 - The app remembers the NSUI banner and icon you chose for each console, and no longer fills in the icon next to a
   banner: with an empty icon field the icon is made from the game's picture.
 - The banner preview shows the top screen as the 3DS draws it, transparency included.
+- NSUI's PC Engine banner gets the game's picture on its TV even when the old picture has dark spots the color of
+  the TV's rim. Before, one such spot could cut the screen short and the banner kept only the new title.
 
 ## 1.0.3 (2026-09-28)
 

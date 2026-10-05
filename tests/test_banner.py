@@ -169,25 +169,35 @@ class FullColourModelTests(unittest.TestCase):
         self.assertEqual(img.getcolors(), [(512, (138, 138, 138, 255))])
 
 
+class ScreenTests(unittest.TestCase):
+    def test_the_picture_is_stretched_over_the_screen_only(self):
+        tv = Image.new("RGB", (128, 128), (30, 34, 34))
+        out = nsui.screen_picture(tv, (5, 5, 123, 92), Image.new("RGB", (320, 224), (200, 10, 10)))
+        self.assertEqual(out.crop((5, 5, 123, 92)).getcolors(), [(118 * 87, (200, 10, 10))])
+        self.assertEqual(out.crop((0, 92, 128, 128)).getcolors(), [(128 * 36, (30, 34, 34))])
+
+
 @unittest.skipUnless(BANNERS, "needs an NSUI banner file (set CDI_TEST_BANNERS)")
 class NSUITemplateTests(unittest.TestCase):
-    def test_a_frame_banner_takes_this_games_picture_and_title(self):
+    def test_a_banner_takes_this_games_picture_and_title(self):
+        """Frame and console + TV banners alike: only the plate and the picture (frame or TV screen) change, and
+        the language models and sound keep their bytes."""
         with tempfile.TemporaryDirectory() as t:
             for path in BANNERS:
                 b = nsui.Banner(path)
                 out, note = nsui.prepare(path, "Castlevania: Rondo of Blood", "1993", t, picture=a_picture())
-                if not b.is_frame:
-                    continue
-                self.assertEqual(note, "your picture and title added")
+                where = b.picture if b.is_frame else b.screen and b.screen[0]
+                self.assertEqual(note, "your picture and title added" if where else "title added", path.name)
                 new = nsui.Banner(out).validate()
-                self.assertEqual(new.data[new.cwav_off:], b.data[b.cwav_off:])
+                self.assertEqual(new.data[new.common_end:], b.data[b.common_end:])
                 texs = cgfx.textures(bytes(b.common))
                 changed = [i for i, (x, y) in enumerate(zip(b.common, new.common)) if x != y]
                 inside = [i for i in changed if any(v["data"] <= i < v["data"] + v["length"]
-                                                    for n, v in texs.items() if n in (b.plate, b.picture))]
-                self.assertEqual(len(changed), len(inside))
-                self.assertEqual(new.texture(b.plate).crop((0, 0, 92, 64)).tobytes(),
-                                 b.texture(b.plate).crop((0, 0, 92, 64)).tobytes())     # NSUI's badge is kept
+                                                    for n, v in texs.items() if n in (b.plate, where))]
+                self.assertEqual(len(changed), len(inside), path.name)
+                if not b.plate_blank():                                          # NSUI's badge is kept
+                    self.assertEqual(new.texture(b.plate).crop((0, 0, 92, 64)).tobytes(),
+                                     b.texture(b.plate).crop((0, 0, 92, 64)).tobytes(), path.name)
 
 
 if __name__ == "__main__":

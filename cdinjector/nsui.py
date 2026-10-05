@@ -2,17 +2,18 @@
 
 NSUI can't make CIAs from Sega CD or PC Engine CD games, but it can from cartridge games (Genesis, TurboGrafx, GBA
 and others). Its "export banner / icon" gives a 3D banner (`.bin`, a 3DS banner) and an icon (`.bin`, a 3DS icon)
-that this app can put on a CD game's CIA instead of its own. Two kinds of NSUI banner are understood:
+that this app can put on a CD game's CIA instead of its own.
 
-* "3D frame with color": the game's picture in a 3D frame, with the Virtual Console title plate below. Such a
-  banner works as a template for any number of games: this app puts the game's picture in the frame and the game's
-  title and year on the plate. The frame (its 3D model, colour and movement), the plate's badge and the sound are
-  NSUI's, byte for byte.
-* 3D console + TV: used exactly as NSUI made it, with one repair. NSUI leaves the title plate blank in some exports
-  (the PC Engine ones); when it's blank, this app draws it with the game's title and year.
+An exported banner works as a template for any number of games: this app puts the game's title and year on the
+Virtual Console plate and the game's picture where the banner shows one. Two kinds are understood:
 
-Either way, only the main 3D model's block of the file is rewritten; every language model and the sound keep their
-bytes.
+* "3D frame with color": the picture goes in the frame.
+* 3D console + TV (NSUI's Genesis and PC Engine banners): the picture goes on the TV's screen, stretched over it as
+  NSUI does. In the Genesis banner the screen is a rectangle of its own; in the PC Engine one it is part of the TV's
+  front, ringed by the TV's own colour. NSUI leaves the PC Engine banner's plate blank, so the whole plate is drawn.
+
+The 3D models, their colours and movement, the plate's badge and the sound stay NSUI's: only the main 3D model's
+block of the file is rewritten, and only those textures in it. Every language model and the sound keep their bytes.
 
 A 3DS banner (CBMD) is a header, a main 3D model (LZ11-compressed CGFX), up to 30 language-specific models, and a
 sound. The main model and the language model of the current system language are both drawn by the Home Menu. In
@@ -49,11 +50,12 @@ class DamagedBannerError(NSUIError):
 
 
 def _parts(cg):
-    """(plate, picture): the names of the title plate's texture (256 x 64 luminance + alpha, on the part that always
-    faces the camera) and of the frame's picture (full colour, on a single rectangle; None in a console + TV
-    banner). plate is None when the model has no such plate."""
+    """(plate, picture, screen) in a banner's main model. plate: the name of the title plate's texture (256 x 64
+    luminance + alpha, on the part that always faces the camera), or None when there is none. picture: a frame
+    banner's picture texture (full colour with see-through corners, on a single rectangle), else None. screen: a
+    console + TV banner's TV screen as (texture name, (left, top, right, bottom) in texels), else None."""
     texs = cgfx.textures(cg)
-    plate = picture = None
+    plate = picture = screen = None
     try:
         meshes = model3d.read_meshes(cg)
     except MODEL_ERRORS:                                   # a model this reader can't follow: look the plate up by name
@@ -69,7 +71,62 @@ def _parts(cg):
     if plate is None and PLATE in texs and texs[PLATE]["fmt"] == cgfx.PICA_LA8 and \
             (texs[PLATE]["w"], texs[PLATE]["h"]) == (256, 64):
         plate = PLATE
-    return plate, picture
+    if picture is None:
+        try:
+            screen = _screen(cg, meshes, texs)
+        except MODEL_ERRORS:
+            screen = None
+    return plate, picture, screen
+
+
+def _front(mesh):
+    """The texel-space box ((u0, v0), (u1, v1) as fractions) of the mesh's biggest flat rectangle: the two triangles
+    that cover the most of its texture."""
+    def uv_area(tri):
+        (u0, v0), (u1, v1), (u2, v2) = ((v[3], v[4]) for v in tri)
+        return abs((u1 - u0) * (v2 - v0) - (u2 - u0) * (v1 - v0)) / 2
+    tris = sorted(mesh["tris"], key=uv_area, reverse=True)[:2]
+    us = [v[3] for t in tris for v in t]
+    vs = [v[4] for t in tris for v in t]
+    return (min(us), min(vs)), (max(us), max(vs))
+
+
+def _screen(cg, meshes, texs):
+    """Where the TV screen is in a console + TV banner (see _parts), or None."""
+    solid = [m for m in meshes if not m["billboard"] and m["tris"] and m["texture"] in texs
+             and texs[m["texture"]]["fmt"] == cgfx.PICA_RGB565]
+    for m in solid:          # NSUI's Genesis banner: the screen is a rectangle of its own, showing all of its texture
+        if len(m["tris"]) == 2 and sum(x["texture"] == m["texture"] for x in meshes) == 1:
+            t = texs[m["texture"]]
+            return m["texture"], (0, 0, t["w"], t["h"])
+    if len(solid) != 1:
+        return None
+    # NSUI's PC Engine banner: the TV is the main model's only solid part, and its screen is the part of the TV's
+    # front inside the ring of the TV's own colour
+    m = solid[0]
+    t = texs[m["texture"]]
+    img = cgfx.read_texture(cg, t).convert("RGB")
+    (u0, v0), (u1, v1) = _front(m)
+    fx0, fx1 = max(0, round(u0 * t["w"])), min(t["w"], round(u1 * t["w"]))
+    fy0, fy1 = max(0, round((1 - v1) * t["h"])), min(t["h"], round((1 - v0) * t["h"]))
+    if fx1 - fx0 < 16 or fy1 - fy0 < 16:
+        return None
+    ring = img.getpixel((fx0 + 1, (fy0 + fy1) // 2))
+
+    def is_ring(x, y):
+        return max(abs(a - b) for a, b in zip(img.getpixel((x, y)), ring)) <= 12
+
+    cx = (fx0 + fx1) // 2
+    top = next((y for y in range(fy0, fy1) if not is_ring(cx, y)), None)
+    if top is None:
+        return None
+    bottom = next((y for y in range(top, fy1) if is_ring(cx, y)), fy1)
+    cy = (top + bottom) // 2
+    left = next((x for x in range(fx0, fx1) if not is_ring(x, cy)), fx0)
+    right = next((x + 1 for x in range(fx1 - 1, fx0, -1) if not is_ring(x, cy)), fx1)
+    if (right - left) * (bottom - top) < 0.4 * (fx1 - fx0) * (fy1 - fy0):
+        return None
+    return m["texture"], (left, top, right, bottom)
 
 
 class Banner:
@@ -107,13 +164,13 @@ class Banner:
                 raise DamagedBannerError(f"{name} is cut short: its sound is incomplete.")
         following = sorted(o for o in self.lang_offs + [self.cwav_off] if o > self.common_off)
         self.common_end = following[0] if following else len(d)
-        self.plate = self.picture = None
+        self.plate = self.picture = self.screen = None
         try:
             self.common = bytearray(cgfx.lz11_decompress(d[self.common_off:self.common_end]))
             if bytes(self.common[:4]) != b"CGFX":
                 raise DamagedBannerError(f"{name}'s 3D model isn't valid.")
             if require_nsui:
-                self.plate, self.picture = _parts(bytes(self.common))
+                self.plate, self.picture, self.screen = _parts(bytes(self.common))
         except ValueError as e:
             raise DamagedBannerError(f"{name} is damaged: {e}.")
         if require_nsui and self.plate is None:
@@ -158,18 +215,19 @@ class Banner:
         return l0 == l1 and a0 == a1
 
     def changes(self, title, year, font_file=None, picture=None):
-        """{texture name: new picture} for this game, and a note saying what they are (None for no change).
-        A frame banner gets the game's title on its plate, and the game's picture in the frame when there is one; a
-        console + TV banner gets a whole plate only when its own is blank."""
-        if self.is_frame:
-            new = {self.plate: retitled_plate(self.texture(self.plate), title, year, font_file)}
-            if picture is not None:
-                new[self.picture] = framed_picture(self.texture(self.picture), picture)
-                return new, "your picture and title added"
-            return new, "title added"
+        """{texture name: new picture} for this game, and a note saying what was added. The plate gets the game's
+        title and year (a blank plate is drawn whole; a filled one keeps NSUI's badge and gets new text), and the
+        game's picture, if there is one, goes in the frame or on the TV screen."""
         if self.plate_blank():
-            return {self.plate: plate_texture(title, year, font_file)}, "title plate added"
-        return {}, None
+            new = {self.plate: plate_texture(title, year, font_file)}
+        else:
+            new = {self.plate: retitled_plate(self.texture(self.plate), title, year, font_file)}
+        if picture is not None and self.is_frame:
+            new[self.picture] = framed_picture(self.texture(self.picture), picture)
+        elif picture is not None and self.screen:
+            name, box = self.screen
+            new[name] = screen_picture(self.texture(name), box, picture)
+        return new, "your picture and title added" if len(new) > 1 else "title added"
 
 
 def plate_texture(title, year, font_file=None):
@@ -217,15 +275,23 @@ def framed_picture(old, picture):
     return out
 
 
+def screen_picture(old, box, picture):
+    """A console + TV banner's screen texture with `picture` stretched over the screen's box, as NSUI does it; the
+    rest of the texture (the TV's front around the screen) is kept."""
+    from PIL import Image
+    out = old.convert("RGB")
+    pic = picture if hasattr(picture, "size") else Image.open(picture)
+    out.paste(pic.convert("RGB").resize((box[2] - box[0], box[3] - box[1]), Image.LANCZOS), box[:2])
+    return out
+
+
 def prepare(path, title, year, workdir, font_file=None, picture=None):
-    """The banner file to put in the CIA: (path, note). note says what was added for this game (see
-    Banner.changes), or is None when the banner is used untouched. Only the main model's block of the file is
-    rewritten; the language models and the sound keep their bytes."""
+    """The banner file to put in the CIA, with this game's title and picture: (path, note), where note says what was
+    added (see Banner.changes). Only the main model's block of the file is rewritten; the language models and the
+    sound keep their bytes."""
     b = Banner(path).validate()
     try:
         new, note = b.changes(title, year, font_file, picture)
-        if not new:
-            return Path(path), None
         cg = bytearray(b.common)
         texs = cgfx.textures(bytes(cg))
         for name, img in new.items():
@@ -256,19 +322,9 @@ def scene(path, title, year, font_file=None, picture=None):
 
 
 def preview_image(path, title, year, size=model3d.VIEW, yaw=0.0, font_file=None, picture=None):
-    """A picture of the banner's 3D model (frame or console + TV) and plate for the app's preview."""
+    """A picture of the banner's 3D model (frame or console + TV) and plate, as prepare() would make it, for the
+    app's preview."""
     parts = scene(path, title, year, font_file, picture)
     if not parts:
         raise NSUIError("There's no 3D model in this banner to show.")
     return model3d.render(parts, yaw, size)
-
-
-def sibling(path):
-    """NSUI names its exports <game>_banner.bin and <game>_icon.bin: the other file of the pair, if it's there."""
-    p = Path(path)
-    for a, b in (("_banner", "_icon"), ("_icon", "_banner")):
-        if p.stem.lower().endswith(a):
-            other = p.with_name(p.stem[:-len(a)] + b + p.suffix)
-            if other.is_file():
-                return other
-    return None

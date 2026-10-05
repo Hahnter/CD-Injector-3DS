@@ -58,11 +58,11 @@ HELP = [
           "file name, and you can change it."),
     ("b", "Picture: a title screen or box art. It becomes the picture on the banner and the icon."),
     ("b", "Banner: \"Title screen in a colored frame\" makes a banner from your picture in the same layout as "
-          "NSUI's frame banners, and you choose the frame color. \"3D banner from NSUI\" uses a banner and icon "
-          "you exported from NSUI (New Super Ultimate Injector). A \"3D frame with color\" banner from any game "
-          "works for every game: your picture goes in the frame and your title on the plate. A Genesis or "
-          "TurboGrafx 3D console + TV banner is used as NSUI made it. Either way it keeps NSUI's 3D model and "
-          "sound."),
+          "NSUI's frame banners, and you choose the frame color. \"3D banner from NSUI\" uses a banner you exported "
+          "from NSUI (New Super Ultimate Injector): a 3D console + TV (say PC Engine for PC Engine CD games and "
+          "Genesis for Sega CD games) or a \"3D frame with color\". Export one per console, once: every game gets "
+          "its picture on the TV or in the frame and its title on the plate, and the app remembers which banner "
+          "goes with which console. It keeps NSUI's 3D model and sound."),
     ("b", "More options: how the picture fits the icon, your own banner sound, and the font used on the title "
           "plate."),
     ("h2", "Good to know"),
@@ -283,18 +283,21 @@ class App(tk.Tk):
         nf.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 0))
         nf.columnconfigure(1, weight=1)
         self.f_nsui = nf
-        ttk.Label(nf, text="Export a banner and icon from NSUI. A \"3D frame with color\" banner from any game "
-                           "works for every game: your picture and title replace its own.",
+        ttk.Label(nf, text="Choose a banner exported from NSUI (a console + TV or a \"3D frame with color\" one). "
+                           "It's remembered for each console, and every game gets its picture and title on it. Leave "
+                           "Icon file empty to make the icon from your picture.",
                   style="Hint.TLabel", wraplength=580, justify="left").grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 3))
-        for r, (label, var, types) in enumerate([
-                ("Banner file", self.v_banner_file, [("3DS banner or picture", "*.bin *.bnr " + PICTURES)]),
-                ("Icon file", self.v_icon_file, [("3DS icon or picture", "*.bin *.icn *.smdh " + PICTURES)])], start=1):
+        for r, (label, var, key, types) in enumerate([
+                ("Banner file", self.v_banner_file, "nsui_banner", [("3DS banner or picture", "*.bin *.bnr " + PICTURES)]),
+                ("Icon file", self.v_icon_file, "nsui_icon", [("3DS icon or picture", "*.bin *.icn *.smdh " + PICTURES)])],
+                start=1):
             ttk.Label(nf, text=label).grid(row=r, column=0, sticky="w", pady=2)
             ttk.Entry(nf, textvariable=var).grid(row=r, column=1, sticky="ew", padx=8)
             ttk.Button(nf, text="Choose…", command=lambda v=var, t=types: self._pick_banner_file(v, t)).grid(
                 row=r, column=2)
             ttk.Button(nf, text="Clear", command=lambda v=var: v.set("")).grid(row=r, column=3, padx=(4, 0))
-            var.trace_add("write", lambda *a: (self._schedule_preview(), self._update_export()))
+            var.trace_add("write", lambda *a, v=var, k=key: (self._remember_nsui_file(v, k), self._schedule_preview(),
+                                                            self._update_export()))
         self._apply_style()
 
         self.v_fit = tk.StringVar(value="height")
@@ -459,8 +462,7 @@ class App(tk.Tk):
         win.focus_set()
 
     def _pick_banner_file(self, var, types):
-        """Choose a banner or icon file; NSUI names them <game>_banner.bin and <game>_icon.bin, so the other
-        file of the pair is filled in too when it's next to it."""
+        """Choose a banner or icon file."""
         p = filedialog.askopenfilename(title="Choose the file", filetypes=types + [("All files", "*.*")],
                                        initialdir=self.settings.get("nsui_dir"))
         if not p:
@@ -468,12 +470,20 @@ class App(tk.Tk):
         self.settings["nsui_dir"] = str(Path(p).parent)
         self._save_settings()
         var.set(p)
-        other = nsui.sibling(p)
-        if other:
-            target = self.v_icon_file if var is self.v_banner_file else self.v_banner_file
-            if not target.get().strip():
-                target.set(str(other))
         self._schedule_preview()
+
+    def _remember_nsui_file(self, var, key):
+        """The NSUI banner and icon are remembered for each console (a PC Engine banner for PC Engine CD games, a
+        Genesis one for Sega CD games, say)."""
+        system = self.system_choice()
+        if system and self.settings.get(f"{key}_{system}", "") != var.get().strip():
+            self.settings[f"{key}_{system}"] = var.get().strip()
+            self._save_settings()
+
+    def _recall_nsui_files(self):
+        system = self.system_choice()
+        for var, key in ((self.v_banner_file, "nsui_banner"), (self.v_icon_file, "nsui_icon")):
+            var.set(self.settings.get(f"{key}_{system}", ""))
 
     def nsui_mode(self):
         return self.v_style.get() == STYLES[1]
@@ -515,6 +525,7 @@ class App(tk.Tk):
         """A console was picked: unlock the rest of the window and tailor it to that console."""
         system = self.system_choice()
         self._set_body_enabled(True)
+        self._recall_nsui_files()
         self._bios_hint = BIOS_HINTS[system] + " " + BIOS_DEFAULT
         self.l_bios.config(text=self._bios_hint, foreground=MUTED)
         self.schedule_check()

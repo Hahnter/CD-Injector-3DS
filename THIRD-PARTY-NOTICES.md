@@ -16,7 +16,7 @@ Nintendo, Sega or NEC.
 
 **Fonts.** No font is bundled. The title plate uses Arial Bold (or the nearest match) from your system, or a font file you choose. Sony's SCE-PS3 Rodin fonts are proprietary and are not included.
 
-**NSUI files.** If you choose a banner and icon exported from NSUI (New Super Ultimate Injector for 3DS), the app only reads the files you give it (and, for a frame banner, puts your picture and title into a copy). It contains no NSUI code or assets, and a banner made this way carries NSUI's 3D model, so don't share the CIAs you make.
+**NSUI files.** If you choose a banner and icon exported from NSUI (New Super Ultimate Injector for 3DS), the app only reads the files you give it (and puts your picture and title into a copy). It contains no NSUI code or assets, and a banner made this way carries NSUI's 3D model, so don't share the CIAs you make.
 
 **bannertool's banner model.** The banner's 3D model is the one bannertool (MIT, see below) writes; the app only enlarges its picture and stores it in full color. `tests/data/bannertool-banner-model.cgfx` is a copy of that model for the tests, with bannertool's license next to it.
 

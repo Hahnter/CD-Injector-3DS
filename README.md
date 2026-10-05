@@ -30,8 +30,8 @@ option.
   from HOME.
 - **A Home Menu banner and icon that match NSUI's.** The banner puts your game's title screen in a frame, in full
   color, with the Virtual Console title plate below, in the same place and style as NSUI's frame banners. The icon
-  gets the same silver border. Or use a banner you exported from NSUI, and your picture and title go into it. See
-  [Your options](#your-options).
+  gets the same silver border. Or use NSUI's 3D PC Engine, Genesis or frame banner as a template: export it once
+  and every game gets its picture and title on it. See [Your options](#your-options).
 
 NSUI (New Super Ultimate Injector) makes CIAs for cartridge consoles but not for these two CD systems. This app
 covers that gap.
@@ -94,28 +94,27 @@ or Genesis ones. The banner is stored in full color (8 bits per channel; bannert
 
 ### A banner and icon from NSUI
 
-NSUI can't make CIAs from Sega CD or PC Engine CD games, but it can for cartridge games, and its banners are 3D. Two
-kinds can go on a CD game:
+NSUI can't make CIAs from Sega CD or PC Engine CD games, but it can for cartridge games, and its banners are 3D. A
+banner exported from NSUI works as a template: export one per console, once, and every game you make gets its own
+picture and title on it.
 
-- **A "3D frame with color" banner, from any game, works for every game.** Export one once (the GBA ones use this
-  style), and the app puts each CD game's picture in the frame and its title and year on the plate. The 3D frame, its
-  color and movement, the plate's badge and the sound stay NSUI's. Pick the frame color in NSUI before you export;
-  export a second one in another color if you want, say, orange for PC Engine CD and blue for Sega CD.
-- **A 3D console + TV banner** (Genesis or TurboGrafx) is used exactly as NSUI made it, so set that game up in NSUI
-  with the title screen you want. Some of these exports (the PC Engine ones) leave the title plate blank; then the
-  app draws the plate with your title and year.
+- **3D console + TV.** Use NSUI's **PC Engine** banner for PC Engine CD games and its **Genesis** banner for Sega
+  CD games. Your picture goes on the TV's screen (stretched over it, as NSUI does) and your title on the plate.
+- **3D frame with color** (the GBA style), from any game: your picture goes in the frame and your title on the
+  plate. Pick the frame color in NSUI before you export.
 
-1. In NSUI, export the game's **banner** and **icon** (`<game>_banner.bin`, `<game>_icon.bin`).
-2. In this app, set **Banner** to *3D banner from NSUI* and choose the banner file. If the icon is next to it under
-   NSUI's usual name, it's filled in for you. For a frame banner, also choose the game's **Picture**. Switch
-   **Banner** back any time to use the colored frame.
+1. In NSUI, set up any game of that console (the title screen and title don't matter) and export its **banner**
+   (`<game>_banner.bin`).
+2. In this app, set **Banner** to *3D banner from NSUI* and choose the banner file. The app remembers it for the
+   console you picked in step 1, so choose the PC Engine one with PC Engine CD selected and the Genesis one with Sega
+   CD selected. Switch **Banner** back any time to use the colored frame.
+3. Choose the game's **Picture** as usual. Leave **Icon file** empty and the icon is made from your picture, with
+   the same silver border NSUI gives its icons.
 
-Only the banner's main 3D model is rewritten, and only its picture and plate in it. Its other models (every
-language slot) and its sound are copied byte for byte. The preview shows the banner's 3D model and plate as a still
-picture.
-
-Nothing from NSUI is included in this app; it only reads the files you export. Because such a banner carries NSUI's
-3D model, keep those CIAs to yourself (you shouldn't share any CIA you make anyway, see below).
+The 3D models, their colors and movement, the plate's badge and the sound stay NSUI's: only the textures for the
+picture and the plate are rewritten, in the banner's main 3D model. Its other models (every language slot) and its
+sound are copied byte for byte. NSUI leaves the PC Engine banner's plate blank, so there the app draws the whole
+plate. The preview shows the banner's 3D model and plate as a still picture.
 
 ### More options
 

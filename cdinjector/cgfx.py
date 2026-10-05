@@ -221,25 +221,38 @@ def write_rgba8(buf, t, img):
     buf[t["data"]:t["data"] + len(data)] = data
 
 
-def write_texture(buf, t, img):
-    _check_texture(buf, t, 2)
-    w, h, p = t["w"], t["h"], t["data"]
-    if img.size != (w, h):
-        raise CGFXError("texture size mismatch")
-    if t["fmt"] == PICA_RGB565:
+def _texture_bytes(img, fmt):
+    w, h = img.size
+    out = bytearray(w * h * 2)
+    p = 0
+    if fmt == PICA_RGB565:
         px = img.convert("RGB").load()
         for x, y in _coords(w, h):
             r, g, b = px[x, y]
-            struct.pack_into("<H", buf, p, ((r * 31 + 127) // 255) << 11 | ((g * 63 + 127) // 255) << 5
+            struct.pack_into("<H", out, p, ((r * 31 + 127) // 255) << 11 | ((g * 63 + 127) // 255) << 5
                              | ((b * 31 + 127) // 255))
             p += 2
-    elif t["fmt"] == PICA_LA8:
+    elif fmt == PICA_LA8:
         px = img.convert("LA").load()
         for x, y in _coords(w, h):
-            buf[p + 1], buf[p] = px[x, y]
+            out[p + 1], out[p] = px[x, y]
             p += 2
     else:
-        raise CGFXError(f"texture format {t['fmt']} not supported")
+        raise CGFXError(f"texture format {fmt} not supported")
+    return bytes(out)
+
+
+def write_texture(buf, t, img):
+    """Write `img` into an RGB565 or luminance + alpha texture of the same size, with its smaller mipmap levels too
+    when the texture has them."""
+    _check_texture(buf, t, 2)
+    if img.size != (t["w"], t["h"]):
+        raise CGFXError("texture size mismatch")
+    levels = mipmaps(img, t["levels"]) if t["levels"] > 1 else [img]
+    if sum(level.width * level.height * 2 for level in levels) > t["length"]:
+        levels = [img]                                  # laid out differently: the full size is what shows anyway
+    data = b"".join(_texture_bytes(level, t["fmt"]) for level in levels)
+    buf[t["data"]:t["data"] + len(data)] = data
 
 
 CBMD_HEADER = 0x88

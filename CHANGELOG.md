@@ -15,9 +15,12 @@ keeps its saves.
   11 pt on one or two lines (8.5 pt for three), and "Released: year" at NSUI's size and place. This plate is also
   the one drawn on NSUI's PC Engine banners when their plate is blank.
 - **The icon** gets the silver Virtual Console border NSUI gives its icons.
-- **NSUI "3D frame with color" banners work, and one is enough for every game.** Choose one (exported from any game)
-  and the app puts this game's picture in the frame and its title and year on the plate, keeping NSUI's 3D frame,
-  its color and movement, the plate's badge and the sound. Before, such a banner failed with an error.
+- **One NSUI banner per console is enough for every game.** NSUI's 3D PC Engine banner (for PC Engine CD games) and
+  Genesis banner (for Sega CD games) now work as templates: the app puts each game's picture on the TV's screen and
+  its title and year on the plate. "3D frame with color" banners work the same way, with the picture in the frame
+  (before, they failed with an error). NSUI's 3D models, their movement, the plate's badge and the sound are kept.
+- The app remembers the NSUI banner and icon you chose for each console, and no longer fills in the icon next to a
+  banner: with an empty icon field the icon is made from the game's picture.
 - The banner preview shows the top screen as the 3DS draws it, transparency included.
 
 ## 1.0.3 (2026-09-28)

@@ -6,9 +6,13 @@ in row order with Z-order (Morton) pixels inside each block, top row first.
 
 import struct
 
+PICA_RGBA8 = 0
 PICA_RGB565 = 3
 PICA_LA8 = 5
 PICA_L8 = 7
+PICA_ETC1 = 12
+PICA_ETC1A4 = 13
+GL_UNSIGNED_BYTE = 0x1401
 
 
 class CGFXError(ValueError):
@@ -76,7 +80,8 @@ def textures(d):
         h, w = u32(d, img), u32(d, img + 4)
         if not (8 <= w <= MAX_TEXTURE_SIDE and 8 <= h <= MAX_TEXTURE_SIDE and w % 8 == 0 and h % 8 == 0):
             raise CGFXError(f"texture {name} has an unusable size ({w} x {h})")
-        out[name] = dict(name=name, h=h, w=w, length=u32(d, img + 8), data=rel(d, img + 0xC), fmt=u32(d, t + 0x34))
+        out[name] = dict(name=name, h=h, w=w, length=u32(d, img + 8), data=rel(d, img + 0xC), fmt=u32(d, t + 0x34),
+                         levels=max(1, u32(d, t + 0x28)), txob=t)
     return out
 
 
@@ -98,10 +103,65 @@ def _check_texture(d, t, bytes_per_pixel):
         raise CGFXError(f"texture {t.get('name', '')} runs past the end of the file")
 
 
-def read_texture(d, t):
+ETC1_TABLES = ((2, 8), (5, 17), (9, 29), (13, 42), (18, 60), (24, 80), (33, 106), (47, 183))
+
+
+def _etc1_block(word):
+    """{(x, y): (r, g, b)} for one 4x4 ETC1 block, given as a 64-bit number."""
+    hi, lo = word >> 32, word & 0xFFFFFFFF
+    flip, t1, t2 = hi & 1, (hi >> 5) & 7, (hi >> 2) & 7
+    if (hi >> 1) & 1:                                   # differential mode: a 5-bit colour and a 3-bit offset
+        def five(v):
+            return (v << 3) | (v >> 2)
+        base = [(hi >> 27) & 31, (hi >> 19) & 31, (hi >> 11) & 31]
+        delta = [((hi >> s) & 7) - (8 if (hi >> s) & 4 else 0) for s in (24, 16, 8)]
+        c1 = tuple(five(b) for b in base)
+        c2 = tuple(five((b + e) & 31) for b, e in zip(base, delta))
+    else:                                               # individual mode: two 4-bit colours
+        c1 = tuple(((hi >> s) & 15) * 17 for s in (28, 20, 12))
+        c2 = tuple(((hi >> s) & 15) * 17 for s in (24, 16, 8))
+    out = {}
+    for x in range(4):
+        for y in range(4):
+            i = x * 4 + y
+            second = y >= 2 if flip else x >= 2
+            small, large = ETC1_TABLES[t2 if second else t1]
+            mod = (small, large, -small, -large)[((lo >> (16 + i)) & 1) * 2 + ((lo >> i) & 1)]
+            out[x, y] = tuple(max(0, min(255, c + mod)) for c in (c2 if second else c1))
+    return out
+
+
+def _read_etc1(d, t, alpha):
     from PIL import Image
-    _check_texture(d, t, {PICA_RGB565: 2, PICA_LA8: 2, PICA_L8: 1}.get(t["fmt"], 2))
     w, h, p = t["w"], t["h"], t["data"]
+    img = Image.new("RGBA", (w, h))
+    px = img.load()
+    for ty in range(0, h, 8):
+        for tx in range(0, w, 8):
+            for by, bx in ((0, 0), (0, 4), (4, 0), (4, 4)):
+                a = struct.unpack_from("<Q", d, p)[0] if alpha else None
+                p += 8 if alpha else 0
+                for (x, y), c in _etc1_block(struct.unpack_from("<Q", d, p)[0]).items():
+                    px[tx + bx + x, ty + by + y] = c + ((((a >> (4 * (x * 4 + y))) & 15) * 17,) if alpha else (255,))
+                p += 8
+    return img
+
+
+def read_texture(d, t):
+    """The texture's picture (its largest size, for one with mipmaps)."""
+    from PIL import Image
+    size = {PICA_RGBA8: 4, PICA_RGB565: 2, PICA_LA8: 2, PICA_L8: 1, PICA_ETC1: 0.5, PICA_ETC1A4: 1}.get(t["fmt"], 2)
+    _check_texture(d, t, size)
+    w, h, p = t["w"], t["h"], t["data"]
+    if t["fmt"] == PICA_RGBA8:
+        img = Image.new("RGBA", (w, h))
+        px = img.load()
+        for x, y in _coords(w, h):
+            px[x, y] = (d[p + 3], d[p + 2], d[p + 1], d[p])
+            p += 4
+        return img
+    if t["fmt"] in (PICA_ETC1, PICA_ETC1A4):
+        return _read_etc1(d, t, t["fmt"] == PICA_ETC1A4)
     if t["fmt"] == PICA_RGB565:
         img = Image.new("RGB", (w, h))
         px = img.load()
@@ -127,6 +187,40 @@ def read_texture(d, t):
     raise CGFXError(f"texture format {t['fmt']} not supported")
 
 
+def rgba8_bytes(img):
+    """An RGBA picture as PICA200 RGBA8 tiles (each texel stored as A, B, G, R)."""
+    w, h = img.size
+    px = img.convert("RGBA").load()
+    out = bytearray(w * h * 4)
+    p = 0
+    for x, y in _coords(w, h):
+        r, g, b, a = px[x, y]
+        out[p:p + 4] = bytes((a, b, g, r))
+        p += 4
+    return bytes(out)
+
+
+def mipmaps(img, levels):
+    """`img` and each half-size version of it below, `levels` pictures in all."""
+    from PIL import Image
+    out = [img]
+    for _ in range(levels - 1):
+        img = img.resize((img.width // 2, img.height // 2), Image.BOX)
+        out.append(img)
+    return out
+
+
+def write_rgba8(buf, t, img):
+    """Write `img` into an RGBA8 texture of the same size, mipmaps included."""
+    w, h = t["w"], t["h"]
+    if t["fmt"] != PICA_RGBA8 or img.size != (w, h):
+        raise CGFXError("texture format or size mismatch")
+    data = b"".join(rgba8_bytes(level) for level in mipmaps(img.convert("RGBA"), t["levels"]))
+    if len(data) != t["length"] or t["data"] < 0 or t["data"] + len(data) > len(buf):
+        raise CGFXError(f"texture {t.get('name', '')} isn't laid out as expected")
+    buf[t["data"]:t["data"] + len(data)] = data
+
+
 def write_texture(buf, t, img):
     _check_texture(buf, t, 2)
     w, h, p = t["w"], t["h"], t["data"]
@@ -146,6 +240,34 @@ def write_texture(buf, t, img):
             p += 2
     else:
         raise CGFXError(f"texture format {t['fmt']} not supported")
+
+
+CBMD_HEADER = 0x88
+
+
+def cbmd_common(data):
+    """(start, end) of the main 3D model's compressed block in a 3DS banner (CBMD)."""
+    words = struct.unpack_from("<%dI" % (CBMD_HEADER // 4), data, 0)
+    start = words[2]
+    later = sorted(w for w in words[3:] if w > start)
+    return start, later[0] if later else len(data)
+
+
+def cbmd_replace_common(data, model):
+    """The banner `data` with its main 3D model replaced by `model` (an uncompressed CGFX). Only that block is
+    rewritten: the language models and the sound keep their bytes and move along by whole 32-byte steps, so each
+    stays as aligned as it was."""
+    if bytes(data[:4]) != b"CBMD" or len(data) < CBMD_HEADER:
+        raise CGFXError("not a 3DS banner")
+    start, end = cbmd_common(data)
+    comp = lz11_compress(bytes(model))
+    comp += bytes((-(len(comp) - (end - start))) % 32)
+    delta = len(comp) - (end - start)
+    words = list(struct.unpack_from("<%dI" % (CBMD_HEADER // 4), data, 0))
+    for i in range(3, CBMD_HEADER // 4):
+        if words[i] and words[i] > start:
+            words[i] += delta
+    return struct.pack("<%dI" % (CBMD_HEADER // 4), *words) + bytes(data[CBMD_HEADER:start]) + comp + bytes(data[end:])
 
 
 def lz11_decompress(src, max_size=MAX_MODEL):

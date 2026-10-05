@@ -9,6 +9,8 @@ from pathlib import Path
 
 from PIL import Image as _Image
 
+from . import cgfx, model3d
+from .model3d import BACKGROUND
 from .resources import font_path, font_path_rounded, run_tool, tool
 
 # Pictures come from the user. Anything over about 50 million pixels is refused as a possible decompression bomb
@@ -56,7 +58,7 @@ def _font(size, bold=True, custom=None):
         except OSError:
             pass
     path = font_path(bold)
-    return ImageFont.truetype(path, size) if path else ImageFont.load_default()
+    return ImageFont.truetype(path, size) if path else ImageFont.load_default(size)
 
 
 def fit_image(src, size, mode="height", background=(0, 0, 0)):
@@ -103,143 +105,199 @@ def _rounded_mask(size, box, radius):
     return m
 
 
+# ------------------------------------------------------------------------------------------------ the title plate
+# The plate is drawn on the 256 x 64 grid of the plate texture in NSUI's banners. Every position below was measured
+# from an NSUI banner and from the 3DS's own screen, so a CD game's plate matches the GBA, NES and Genesis ones beside
+# it on the Home Menu.
+PLATE_BADGE = (8.0, 7.6, 92.6, 56.3)                   # the gray "Virtual Console" badge
+PLATE_WORDS = (("Virtual", (16.6, 16.6, 76.4, 31.4)),  # the ink box of each word of the white lettering
+               ("Console", (15.6, 32.6, 86.4, 48.4)))
+PLATE_TEXT_X, PLATE_TEXT_W = 173, 152                  # the title and year are centred here, at most this wide
+PLATE_TITLE_Y = 22.5                                   # the middle of the title's lines
+PLATE_YEAR_BASELINE = 57.0
+PLATE_YEAR_SIZE = 14.67                                # 11 pt, as NSUI writes it
+PLATE_INK = (32, 32, 32, 255)
+# Title sizes, largest first, with the most lines each may take: 11 pt on one or two lines, 8.5 pt on three (NSUI's
+# own sizes), then smaller still for very long titles.
+TITLE_SIZES = ((14.67, 2), (11.33, 3), (10.0, 3), (9.0, 3), (8.0, 3))
+LINE_PITCH = 1.15                                      # line spacing, in font sizes
+
+
 def _wordmark(layer, S):
-    """The white slanted "Virtual / Console" lettering on the badge, drawn onto `layer` (256x64 units at S x)."""
+    """The white slanted "Virtual / Console" lettering on the badge, drawn onto `layer` (256 x 64 units at S x)."""
     from PIL import Image, ImageDraw, ImageFont
     path = font_path_rounded()
     if not path:
         return
-    target = 69 * S                                    # "Console" is about 69 units wide
-    size = 200
-    while size > 8 and ImageDraw.Draw(layer).textlength("Console", font=ImageFont.truetype(path, size)) + 1.5 * S > target:
-        size -= 1
-    f = ImageFont.truetype(path, size)
-    shear = 0.2
-    tall = 1.14                                        # the real lettering is taller than this font
-    for text, cy in (("Virtual", 22.5), ("Console", 40.5)):
-        tmp = Image.new("RGBA", layer.size, (0, 0, 0, 0))
-        ImageDraw.Draw(tmp).text((16 * S, int(cy * S)), text, font=f, fill=(255, 255, 255, 255), anchor="lm",
-                                 stroke_width=S * 5 // 8, stroke_fill=(255, 255, 255, 255))
-        # slant and stretch about the line's own centre so the text keeps its place
-        tmp = tmp.transform(tmp.size, Image.AFFINE,
-                            (1, shear, -shear * cy * S, 0, 1 / tall, cy * S * (1 - 1 / tall)), resample=Image.BICUBIC)
-        layer.alpha_composite(tmp)
+    big = 160
+    f = ImageFont.truetype(path, big)
+    for text, (x0, y0, x1, y1) in PLATE_WORDS:
+        tmp = Image.new("L", (big * (len(text) + 2), big * 2), 0)
+        ImageDraw.Draw(tmp).text((big, big // 2), text, font=f, fill=255, stroke_width=big // 30, stroke_fill=255)
+        tmp = tmp.transform(tmp.size, Image.AFFINE, (1, 0.2, -0.2 * big, 0, 1, 0), resample=Image.BICUBIC)
+        tmp = tmp.crop(tmp.getbbox())                   # slanted, then stretched over the word's measured ink box
+        mask = tmp.resize((round((x1 - x0) * S), round((y1 - y0) * S)), Image.LANCZOS)
+        layer.paste((255, 255, 255, 255), (round(x0 * S), round(y0 * S)), mask)
+
+
+def _plate_body(S):
+    """The plate without its text: a two-tone rim (light top and left, darker right and bottom), a white face that
+    turns a little gray towards the bottom, and the gray badge with its lettering."""
+    from PIL import Image
+    W, H = 256 * S, 64 * S
+    out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    for k, shade in enumerate((150, 160, 174)):          # darker towards the right and bottom edges
+        out.paste((shade,) * 3 + (255,), (0, 0), _rounded_mask((W, H), (0, S, (256 - k) * S - 1, (63 - k) * S - 1), 6 * S))
+    out.paste((201, 201, 201, 255), (0, 0), _rounded_mask((W, H), (0, S, 252 * S - 1, 60 * S - 1), 6 * S))
+    column = Image.new("L", (1, H))
+    column.putdata([round(255 - max(0.0, (y + 0.5) / S - 20.5) * 1.03) for y in range(H)])
+    face = Image.merge("RGB", (column,) * 3).resize((W, H), Image.NEAREST)
+    out.paste(face, (0, 0), _rounded_mask((W, H), (4 * S, 4 * S, 252 * S - 1, 60 * S - 1), 3 * S))
+    x0, y0, x1, y1 = PLATE_BADGE
+    out.paste((140, 140, 140, 255), (0, 0),
+              _rounded_mask((W, H), (round(x0 * S), round(y0 * S), round(x1 * S) - 1, round(y1 * S) - 1), 5 * S))
+    _wordmark(out, S)
+    return out
+
+
+def _wrap(draw, words, font, width):
+    """Greedy word wrap, as NSUI does it: each line takes as many words as fit."""
+    lines, line = [], ""
+    for word in words:
+        trial = f"{line} {word}" if line else word
+        if line and draw.textlength(trial, font=font) > width:
+            lines.append(line)
+            line = word
+        else:
+            line = trial
+    return lines + [line] if line else lines
+
+
+def plate_title_layout(title, S=1, font_file=None):
+    """(font, lines) for the title on the plate. Like NSUI: the title is wrapped at 11 pt; one or two lines stay at
+    11 pt, and three lines keep those line breaks at 8.5 pt. Longer titles take the largest smaller size that fits."""
+    from PIL import Image, ImageDraw
+    d = ImageDraw.Draw(Image.new("L", (1, 1)))
+    words, width = title.split() or [""], PLATE_TEXT_W * S
+    f = _font(TITLE_SIZES[0][0] * S, True, font_file)
+    lines = _wrap(d, words, f, width)
+    if len(lines) == 3 and all(d.textlength(t, font=f) <= width for t in lines):
+        return _font(TITLE_SIZES[1][0] * S, True, font_file), lines
+    for size, most in TITLE_SIZES:
+        f = _font(size * S, True, font_file)
+        lines = _wrap(d, words, f, width)
+        if len(lines) <= most and all(d.textlength(t, font=f) <= width for t in lines):
+            return f, lines
+    lines = _wrap(d, words, f, width)                   # too long even then: shorten what doesn't fit
+    lines = lines[:2] + [" ".join(lines[2:])] if len(lines) > 3 else lines
+    return f, [_fit_text(d, t, width, [f.size], custom=font_file)[1] if d.textlength(t, font=f) > width else t
+               for t in lines]
+
+
+def plate_text(title, year, S=4, font_file=None):
+    """The title and "Released: <year>" in the plate's ink on a transparent 256 x 64 (x S) layer."""
+    from PIL import Image, ImageDraw
+    layer = Image.new("RGBA", (256 * S, 64 * S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    f, lines = plate_title_layout(title, S, font_file)
+    cap = -f.getbbox("H", anchor="ls")[1]               # lines are placed by their capital letters, like NSUI's
+    pitch = LINE_PITCH * f.size
+    for i, text in enumerate(lines):
+        middle = PLATE_TITLE_Y * S + (i - (len(lines) - 1) / 2) * pitch
+        d.text((PLATE_TEXT_X * S, middle + cap / 2), text, font=f, fill=PLATE_INK, anchor="ms")
+    fy, released = _fit_text(d, "Released: " + (year or "Unknown"), PLATE_TEXT_W * S, [PLATE_YEAR_SIZE * S],
+                             custom=font_file)
+    d.text((PLATE_TEXT_X * S, PLATE_YEAR_BASELINE * S), released, font=fy, fill=PLATE_INK, anchor="ms")
+    return layer
 
 
 def draw_plate(title, year, S=4, font_file=None):
-    """The Virtual Console title plate, 256x64 units drawn at S x: a silver-edged white plate, a gray badge with
-    the slanted "Virtual Console" lettering on the left, the game's title and "Released: year" centred beside it.
-    font_file: a font for the title and year (the official Virtual Console banners use a Rodin-style face)."""
-    from PIL import Image, ImageDraw
-    W, H = 256 * S, 64 * S
-    plate = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    edge = _gradient((W, H), (222,) * 3, (140,) * 3)                                 # silver rim, darker at the bottom
-    plate.paste(edge, (0, 0), _rounded_mask((W, H), (0, 0, W - 1, H - 1), 9 * S))
-    inset = 3 * S
-    face = _gradient((W, H), (255,) * 3, (226,) * 3)                                  # white, a little gray at the bottom
-    plate.paste(face, (0, 0), _rounded_mask((W, H), (inset, inset, W - 1 - inset, H - 1 - inset), 7 * S))
-    plate.paste((140, 140, 140, 255), (0, 0), _rounded_mask((W, H), (8 * S, 7 * S, 92 * S, 57 * S), 5 * S))
-    _wordmark(plate, S)
-
-    d = ImageDraw.Draw(plate)
-    cx, max_w = 172 * S, 154 * S
-    ink = (30, 30, 34, 255)
-    lines, f = [title], _font(12 * S, True, font_file)
-    for size in (14, 13, 12):                          # one line if it fits at a readable size
-        f = _font(size * S, True, font_file)
-        if d.textlength(title, font=f) <= max_w:
-            break
-    else:
-        words = title.split()
-        for size in (14, 13, 12, 11, 10, 9, 8):
-            f = _font(size * S, True, font_file)
-            best = None
-            for i in range(1, len(words)):
-                a, b = " ".join(words[:i]), " ".join(words[i:])
-                width = max(d.textlength(a, font=f), d.textlength(b, font=f))
-                if a.endswith((":", "-")):
-                    width *= 0.85
-                if best is None or width < best[0]:
-                    best = (width, [a, b])
-            lines = best[1] if best else [title]
-            if all(d.textlength(t, font=f) <= max_w for t in lines):
-                break
-        if len(lines) == 1:                            # one long word: shorten it
-            f, text = _fit_text(d, title, max_w, [11 * S, 10 * S, 9 * S, 8 * S], custom=font_file)
-            lines = [text]
-    lines = lines[:2]
-    line_h = int(f.size * 1.2)
-    y = (23 * S if len(lines) == 1 else 21 * S) - (len(lines) - 1) * line_h // 2
-    for t in lines:
-        d.text((cx, y), t, font=f, fill=ink, anchor="mm")
-        y += line_h
-    d.text((cx, 51 * S), "Released: " + (year or "Unknown"), font=_font(13 * S, True, font_file), fill=ink, anchor="mm")
+    """The Virtual Console title plate, 256 x 64 units drawn at S x: the gray badge with the slanted "Virtual Console"
+    lettering on the left, the game's title (up to three lines) and "Released: <year>" beside it.
+    font_file: a font for the title and year (Arial Bold when None, as NSUI uses)."""
+    plate = _plate_body(S)
+    plate.alpha_composite(plate_text(title, year, S, font_file))
     return plate
 
 
+# ------------------------------------------------------------------------------------------------ the 2D banner
+# Where everything sits on the banner, in pixels of the 3DS's top screen (400 x 240). These are the places of NSUI's
+# "3D frame with color" banner at rest, so a CD game's banner lines up with the cartridge games' on the Home Menu.
+BANNER_QUAD = (72, 40, 328, 232)                       # the part of the screen the banner picture covers (256 x 192)
+FRAME_BOX = (133.7, 48.2, 266.3, 146.2)
+BEZEL_BOX = (144.5, 59.3, 255.5, 132.7)                # the light inner rim around the game's picture
+WINDOW_BOX = (148.1, 62.7, 251.9, 129.3)               # the game's picture
+PLATE_BOX = (92.2, 163.6, 307.8, 217.5)                # the title plate (its 256 x 64 drawing, shown a little smaller)
+
+# Screenshot sizes of PC Engine and Mega Drive / Sega CD games. A TV showed every one of them 4:3.
+CONSOLE_WIDTHS = {256, 320, 336, 352, 512, 640}
+CONSOLE_HEIGHTS = set(range(192, 257)) | set(range(384, 513))
+
+
+def tv_picture(img):
+    """A screenshot at a console's own resolution (256 x 224, 320 x 224, 512 x 448 and so on) stretched to the 4:3
+    shape a TV gave it; any other picture is returned as it is."""
+    from PIL import Image
+    w, h = img.size
+    if w in CONSOLE_WIDTHS and h in CONSOLE_HEIGHTS and w * 3 != h * 4:
+        return img.resize((round(h * 4 / 3), h), Image.LANCZOS)
+    return img
+
+
+def frame_palette(color):
+    """(body, edge, line, bezel) of the frame in a colour: the body is the colour itself, the edge is the light
+    rounded rim around it, the line is the dark seam before the inner rim, and the bezel is the light inner rim."""
+    import colorsys
+    body = tuple(int(c) for c in color)
+    edge = tuple(min(255, c + 63) for c in body)
+    line = tuple(round(c * 0.8) for c in body)
+    h, s, v = colorsys.rgb_to_hsv(*(c / 255 for c in body))
+    bezel = tuple(round(c * 255) for c in colorsys.hsv_to_rgb(h, s * 0.8, min(1.0, v * 1.5)))
+    return body, edge, line, bezel
+
+
 def draw_vc_banner(image, title, year, system, color=None, font_file=None):
-    """256x128 banner: the game's title screen in a frame of the chosen colour (the frame follows the
-    picture's shape, so nothing is cropped), with the Virtual Console title plate underneath.
+    """The banner picture, 256 x 192 (the BANNER_QUAD part of the top screen): the game's title screen in a frame of
+    the chosen colour with the Virtual Console title plate below, laid out like NSUI's frame banners.
     color: (r, g, b), or None for the system's own colour."""
     from PIL import Image, ImageDraw
     S = 4
-    W, H = 256 * S, 128 * S
-    top, bottom = frame_colors(color or DEFAULT_COLORS.get(system, (120, 120, 120)))
+    qx, qy = BANNER_QUAD[:2]
+    W, H = (BANNER_QUAD[2] - qx) * S, (BANNER_QUAD[3] - qy) * S
     out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
 
-    aspect = 4 / 3
+    def box(b, grow=0.0):
+        return (round((b[0] - qx - grow) * S), round((b[1] - qy - grow) * S),
+                round((b[2] - qx + grow) * S) - 1, round((b[3] - qy + grow) * S) - 1)
+
+    def fill(b, radius, colour, grow=0.0):
+        out.paste(tuple(colour) + (255,), (0, 0), _rounded_mask((W, H), box(b, grow), round(radius * S)))
+
+    body, edge, line, bezel = frame_palette(color or DEFAULT_COLORS.get(system, (120, 120, 120)))
+    for k in range(5 * S):                              # the frame's rounded edge catches the light
+        t = (1 - k / (5 * S)) ** 2
+        fill(FRAME_BOX, max(10 - k / S, 5), [round(b + (e - b) * t) for b, e in zip(body, edge)], -k / S)
+    fill(FRAME_BOX, 5, body, -5)
+    fill(BEZEL_BOX, 7, line, 1)
+    fill(BEZEL_BOX, 6, bezel)
+
+    x0, y0, x1, y1 = box(WINDOW_BOX)
+    size = (x1 - x0 + 1, y1 - y0 + 1)
     if image:
         pic = image if hasattr(image, "size") else Image.open(image)
-        aspect = min(2.2, max(1.0, pic.width / pic.height))
-    B = 6                                              # bezel width around the screen
-    sh = 54                                            # the screen fits a 152 x 54 box
-    sw = round(sh * aspect)
-    if sw > 152:
-        sw, sh = 152, round(152 / aspect)
-
-    def rounded(box, r, fill):
-        m = Image.new("L", (W, H), 0)
-        ImageDraw.Draw(m).rounded_rectangle(box, r, fill=255)
-        if hasattr(fill, "size"):
-            out.paste(fill, (0, 0), m)
-        else:
-            out.paste(fill, mask=m)
-
-    # frame body with a soft drop shadow, centred in the space above the plate (with a clear gap before it)
-    fx0 = (256 - (sw + 2 * B)) * S // 2
-    fy0 = (2 + (66 - (sh + 2 * B)) // 2) * S
-    fx1, fy1 = fx0 + (sw + 2 * B) * S, fy0 + (sh + 2 * B) * S
-    rounded((fx0 + 2 * S, fy0 + 3 * S, fx1 + 2 * S, fy1 + 3 * S), 10 * S, (0, 0, 0, 90))
-    rounded((fx0, fy0, fx1, fy1), 10 * S, _gradient((W, H), top, bottom).convert("RGBA"))
-    hl = Image.new("L", (W, H), 0)
-    ImageDraw.Draw(hl).rounded_rectangle((fx0 + 3 * S, fy0 + 2 * S, fx1 - 3 * S, fy0 + 10 * S), 7 * S, fill=70)
-    out.paste((255, 255, 255, 255), mask=hl)
-
-    # screen
-    sx0, sy0, sx1, sy1 = fx0 + B * S, fy0 + B * S, fx1 - B * S, fy1 - B * S
-    rounded((sx0 - S, sy0 - S, sx1 + S, sy1 + S), 4 * S, (15, 15, 20, 255))
-    screen = (fit_image(image, (sx1 - sx0, sy1 - sy0), "cover") if image
-              else _gradient((sx1 - sx0, sy1 - sy0), (30, 30, 40), (10, 10, 14)))
-    sm = Image.new("L", (sx1 - sx0, sy1 - sy0), 0)
-    ImageDraw.Draw(sm).rounded_rectangle((0, 0, sx1 - sx0 - 1, sy1 - sy0 - 1), 4 * S, fill=255)
-    out.paste(screen.convert("RGBA"), (sx0, sy0), sm)
-    if not image:
+        screen = fit_image(tv_picture(pic.convert("RGBA")), size, "cover")
+    else:
+        screen = _gradient(size, (30, 30, 40), (10, 10, 14))
         label = {"pce": "PC ENGINE CD", "segacd": "SEGA CD"}.get(system, "")
-        dark = 0.3 * top[0] + 0.59 * top[1] + 0.11 * top[2] < 90          # keep the label readable on a dark frame
-        d = ImageDraw.Draw(out)
-        font, label = _fit_text(d, label, (sx1 - sx0) - 10 * S, [s * S for s in (11, 10, 9, 8, 7)])  # fits the screen
-        d.text(((sx0 + sx1) // 2, (sy0 + sy1) // 2), label, font=font,
-               fill=(175, 175, 185, 255) if dark else top + (255,), anchor="mm")
+        d = ImageDraw.Draw(screen)
+        font, label = _fit_text(d, label, size[0] - 12 * S, [s * S for s in (13, 12, 11, 10, 9, 8)])
+        d.text((size[0] // 2, size[1] // 2), label, font=font, fill=bezel, anchor="mm")
+    out.paste(screen.convert("RGBA"), (x0, y0), _rounded_mask(size, (0, 0, size[0] - 1, size[1] - 1), 3 * S))
 
-    # the Virtual Console plate, 204 x 51 at the bottom
-    pw, ph = 204 * S, 51 * S
-    px0, py0 = (W - pw) // 2, H - ph - 3 * S
-    plate = draw_plate(title, year, S, font_file).resize((pw, ph), Image.LANCZOS)
-    shadow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    shadow.paste((0, 0, 0, 70), (px0, py0 + S), plate.getchannel("A"))
-    out.alpha_composite(shadow)
-    out.alpha_composite(plate, (px0, py0))
-    return out.resize((256, 128), Image.LANCZOS)
+    px0, py0, px1, py1 = box(PLATE_BOX)
+    out.alpha_composite(draw_plate(title, year, S, font_file).resize((px1 - px0 + 1, py1 - py0 + 1), Image.LANCZOS),
+                        (px0, py0))
+    return out.reduce(S)
 
 
 def read_smdh_icon(path):
@@ -328,10 +386,16 @@ def check_sound(path):
     return path
 
 
-def _run_makebanner(image, sound, out_bnr, workdir):
-    """bannertool runs inside `workdir` with plain relative names (see resources.run_tool)."""
+# bannertool's own banner: a 256 x 128 picture on this part of the top screen (kept for a picture used as it is)
+CUSTOM_QUAD = (70, 75, 330, 205)
+
+
+def _run_makebanner(image, quad, sound, out_bnr, workdir):
+    """bannertool makes the banner file and its sound; its model then gets `image` in full colour on `quad` (see
+    model3d.flat_banner_model). bannertool runs inside `workdir` with plain relative names (see resources.run_tool)."""
+    from PIL import Image
     workdir = Path(workdir)
-    image.save(workdir / "banner.png")
+    Image.new("RGBA", (256, 128), (0, 0, 0, 0)).save(workdir / "banner.png")      # replaced below
     out_name = "banner_out.bnr"
     cmd = [tool("bannertool"), "makebanner", "-i", "banner.png", "-o", out_name]
     if sound:
@@ -342,20 +406,34 @@ def _run_makebanner(image, sound, out_bnr, workdir):
         chime_wav(workdir / "chime.wav")
         cmd += ["-a", "chime.wav"]
     run_tool(cmd, cwd=workdir)
-    shutil.move(str(workdir / out_name), str(out_bnr))
+    data = (workdir / out_name).read_bytes()
+    start, end = cgfx.cbmd_common(data)
+    model = model3d.flat_banner_model(cgfx.lz11_decompress(data[start:end]), image, quad)
+    Path(out_bnr).write_bytes(cgfx.cbmd_replace_common(data, model))
 
 
 def make_banner(image, title, year, system, sound, out_bnr, workdir, style="vc", color=None, font_file=None):
-    """style: 'vc' draws the coloured-frame + Virtual Console plate (default);
+    """style: 'vc' draws the coloured frame + Virtual Console plate (default);
     'custom' uses `image` as the whole banner picture, unmodified."""
     if style == "custom":
         if not image:
             raise ValueError("Choose a banner image, or switch to the Virtual Console banner style.")
-        img = draw_custom_banner(image)
+        img, quad = draw_custom_banner(image), CUSTOM_QUAD
     else:
-        img = draw_vc_banner(image, title, year, system, color, font_file)
-    _run_makebanner(img, sound, out_bnr, workdir)
+        img, quad = draw_vc_banner(image, title, year, system, color, font_file), BANNER_QUAD
+    _run_makebanner(img, quad, sound, out_bnr, workdir)
     return img
+
+
+def on_screen(img, quad, size):
+    """The banner picture as it shows on the top screen, for the app's preview: framed like model3d.render's view
+    (the screen's full height, centred) and scaled to `size`."""
+    from PIL import Image
+    w = round(240 * size[0] / size[1])
+    screen = Image.new("RGBA", (max(w, 400), 240), BACKGROUND + (255,))
+    screen.alpha_composite(img.convert("RGBA"), (quad[0] + (screen.width - 400) // 2, quad[1]))
+    left = (screen.width - w) // 2
+    return screen.crop((left, 0, left + w, 240)).convert("RGB").resize(size, Image.LANCZOS)
 
 
 SMDH_BYTES = 0x36C0
@@ -411,15 +489,34 @@ def smdh_bytes(icon, short_name, long_name, publisher):
     return data
 
 
-def make_icon(image, fit, short_name, long_name, publisher, system, out_icn, color=None):
-    from PIL import ImageDraw
+ICON_WINDOW = (4, 4, 44, 44)                            # the picture's 40 x 40 window inside the icon's border
+
+
+def icon_image(image, fit, short_name, system, color=None):
+    """The 48 x 48 Home Menu icon: the picture (or the game's initials on the frame colour) inside the silver border
+    NSUI gives its Virtual Console icons: two 2-pixel rings, the outer one light at the top and dark at the bottom,
+    the inner one the other way round."""
+    from PIL import Image, ImageDraw
+    icon = Image.new("RGB", (48, 48))
+    d = ImageDraw.Draw(icon)
+    for y in range(48):
+        d.line((0, y, 47, y), fill=(round(250 - 149 * y / 47),) * 3)
+    for y in range(2, 46):
+        d.line((2, y, 45, y), fill=(round(101 + 89 * (y - 2) / 43),) * 3)
+    x0, y0, x1, y1 = ICON_WINDOW
+    size = (x1 - x0, y1 - y0)
     if image:
-        icon = fit_image(image, (48, 48), fit)
+        window = fit_image(image, size, fit)
     else:
-        top, bottom = frame_colors(color or DEFAULT_COLORS.get(system, (120, 120, 120)))
-        icon = _gradient((48, 48), top, bottom)
+        window = _gradient(size, *frame_colors(color or DEFAULT_COLORS.get(system, (120, 120, 120))))
         letters = "".join(w[0] for w in short_name.replace(":", " ").split()[:3]).upper() or "?"
-        ImageDraw.Draw(icon).text((24, 25), letters, font=_font(18 if len(letters) < 3 else 14),
-                                  fill=(255, 255, 255), anchor="mm")
+        ImageDraw.Draw(window).text((size[0] // 2, size[1] // 2 + 1), letters,
+                                    font=_font(15 if len(letters) < 3 else 12), fill=(255, 255, 255), anchor="mm")
+    icon.paste(window, (x0, y0))
+    return icon
+
+
+def make_icon(image, fit, short_name, long_name, publisher, system, out_icn, color=None):
+    icon = icon_image(image, fit, short_name, system, color)
     Path(out_icn).write_bytes(smdh_bytes(icon, short_name, long_name, publisher or "Unknown"))
     return icon

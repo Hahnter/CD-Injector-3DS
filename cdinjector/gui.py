@@ -21,7 +21,7 @@ SETTINGS = Path(os.environ.get("APPDATA", Path.home())) / APP_NAME / "settings.j
 IMAGE_TYPES = [("Images", "*.png *.jpg *.jpeg *.bmp *.gif *.webp"), ("All files", "*.*")]
 OK, BAD, MUTED = "#1b7a2b", "#b3261e", "#666"
 PICTURES = "*.png *.jpg *.jpeg *.bmp *.gif *.webp"
-STYLES = ["Title screen in a colored frame", "3D console + TV banner from NSUI"]
+STYLES = ["Title screen in a colored frame", "3D banner from NSUI"]
 CW, CH = 320, 160                                   # the banner preview area
 
 BIOS_HINTS = {
@@ -57,10 +57,12 @@ HELP = [
     ("b", "Game title, Publisher, Year: shown on the banner and under the icon. The title is filled in from the "
           "file name, and you can change it."),
     ("b", "Picture: a title screen or box art. It becomes the picture on the banner and the icon."),
-    ("b", "Banner: \"Title screen in a colored frame\" makes a banner from your picture, and you choose the frame "
-          "color. \"3D console + TV banner from NSUI\" uses a banner and icon you exported from NSUI (New Super "
-          "Ultimate Injector): make a Genesis or TurboGrafx game there, export its banner and icon, and choose "
-          "them here. You get NSUI's 3D console, controller and TV, and its sound."),
+    ("b", "Banner: \"Title screen in a colored frame\" makes a banner from your picture in the same layout as "
+          "NSUI's frame banners, and you choose the frame color. \"3D banner from NSUI\" uses a banner and icon "
+          "you exported from NSUI (New Super Ultimate Injector). A \"3D frame with color\" banner from any game "
+          "works for every game: your picture goes in the frame and your title on the plate. A Genesis or "
+          "TurboGrafx 3D console + TV banner is used as NSUI made it. Either way it keeps NSUI's 3D model and "
+          "sound."),
     ("b", "More options: how the picture fits the icon, your own banner sound, and the font used on the title "
           "plate."),
     ("h2", "Good to know"),
@@ -281,8 +283,9 @@ class App(tk.Tk):
         nf.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 0))
         nf.columnconfigure(1, weight=1)
         self.f_nsui = nf
-        ttk.Label(nf, text="In NSUI, export a Genesis or TurboGrafx game's banner and icon, then choose them.",
-                  style="Hint.TLabel").grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 3))
+        ttk.Label(nf, text="Export a banner and icon from NSUI. A \"3D frame with color\" banner from any game "
+                           "works for every game: your picture and title replace its own.",
+                  style="Hint.TLabel", wraplength=580, justify="left").grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 3))
         for r, (label, var, types) in enumerate([
                 ("Banner file", self.v_banner_file, [("3DS banner or picture", "*.bin *.bnr " + PICTURES)]),
                 ("Icon file", self.v_icon_file, [("3DS icon or picture", "*.bin *.icn *.smdh " + PICTURES)])], start=1):
@@ -441,7 +444,7 @@ class App(tk.Tk):
                  "An NSUI banner keeps its own sound."),
                 ("Title plate font", self.v_font, [("Font", "*.ttf *.otf")],
                  "A .ttf or .otf file for the title and year on the Virtual Console plate. Empty means "
-                 "Arial Bold. Official banners look closest with Sony's Rodin Bold, which you'd supply yourself.")]
+                 "Arial Bold, the font NSUI uses. Nintendo's own banners use Rodin, which you'd supply yourself.")]
         for i, (label, var, types, note) in enumerate(rows):
             r = 2 + i * 2
             ttk.Label(f, text=label, style="Step.TLabel").grid(row=r, column=0, sticky="w")
@@ -689,9 +692,11 @@ class App(tk.Tk):
                                 width=3 if picked else 1)
 
     def _draw_nsui_preview(self, path, title):
-        """The 3D console, TV and title plate inside an NSUI banner, as they'll look on the Home Menu (a still picture)."""
+        """The 3D frame or console + TV and the title plate of an NSUI banner, as they'll look on the Home Menu
+        (a still picture)."""
         try:
-            img = nsui.preview_image(path, title, self.v_year.get().strip(), (CW, CH), font_file=self.font_file())
+            img = nsui.preview_image(path, title, self.v_year.get().strip(), (CW, CH), font_file=self.font_file(),
+                                     picture=self.image)
         except nsui.NSUIError as e:
             self.c_banner.create_text(CW // 2, CH // 2, width=340, justify="center", fill=BAD, text=str(e))
             return
@@ -729,13 +734,12 @@ class App(tk.Tk):
                 self._draw_nsui_preview(banner_file, title)
             else:
                 if banner_file:
-                    img = bn.draw_custom_banner(banner_file).convert("RGBA")
+                    img, quad = bn.draw_custom_banner(banner_file), bn.CUSTOM_QUAD
                 else:
                     img = bn.draw_vc_banner(self.image, title, self.v_year.get().strip(), system,
                                             bn.parse_color(self.v_color.get()), self.font_file())
-                bg = Image.new("RGBA", img.size, (223, 229, 236, 255))
-                bg.alpha_composite(img)
-                self._photos["banner"] = ImageTk.PhotoImage(bg.resize((CW, CH), Image.LANCZOS))
+                    quad = bn.BANNER_QUAD
+                self._photos["banner"] = ImageTk.PhotoImage(bn.on_screen(img, quad, (CW, CH)))
                 self.c_banner.create_image(CW // 2, CH // 2, image=self._photos["banner"])
 
             icon = None
@@ -747,10 +751,7 @@ class App(tk.Tk):
                 except (OSError, ValueError):
                     icon = None
             if icon is None:
-                if self.image:
-                    icon = bn.fit_image(self.image, (48, 48), self.v_fit.get())
-                else:
-                    icon = bn._gradient((48, 48), *bn.frame_colors(self.effective_color()))
+                icon = bn.icon_image(self.image, self.v_fit.get(), title, system, bn.parse_color(self.v_color.get()))
             self._photos["icon"] = ImageTk.PhotoImage(icon.resize((96, 96), Image.NEAREST))
             self.c_icon.delete("all")
             self.c_icon.create_image(48, 48, image=self._photos["icon"])

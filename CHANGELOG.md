@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.1.0 (unreleased)
+
+Banners and icons now match the ones NSUI makes, so a CD game looks at home next to your GBA, NES and Genesis games
+on the Home Menu. Remake a CIA to get the new banner; the title ID stays the same, so it installs over the old one and
+keeps its saves.
+
+- **Full-color banners.** bannertool stores a banner picture with only 4 bits per color channel, which put visible
+  bands in skies, the frame and the title plate. The app now writes the banner's picture with 8 bits per channel.
+- **NSUI's layout.** The frame, the game's picture and the title plate have the same size and place on the top screen
+  as in NSUI's "3D frame with color" banners. The picture is bigger than before (about 104 x 67 pixels instead of
+  72 x 54), and a screenshot at a console's own resolution is shown at the 4:3 shape a TV gave it.
+- **The title plate matches NSUI's**: badge, rim and face measured from an NSUI banner, the title in Arial Bold at
+  11 pt on one or two lines (8.5 pt for three), and "Released: year" at NSUI's size and place. This plate is also
+  the one drawn on NSUI's PC Engine banners when their plate is blank.
+- **The icon** gets the silver Virtual Console border NSUI gives its icons.
+- **NSUI "3D frame with color" banners work, and one is enough for every game.** Choose one (exported from any game)
+  and the app puts this game's picture in the frame and its title and year on the plate, keeping NSUI's 3D frame,
+  its color and movement, the plate's badge and the sound. Before, such a banner failed with an error.
+- The banner preview shows the top screen as the 3DS draws it, transparency included.
+
 ## 1.0.3 (2026-09-28)
 
 - The program is now `CD-Injector-3DS.exe` in a `CD-Injector-3DS` folder (it was `CD Injector 3DS.exe`), so the

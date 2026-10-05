@@ -7,14 +7,18 @@ games or BIOS files.
 License (see `LICENSE`). Everything below is other people's work and keeps its own license. Because PicoDrive is
 included in every CIA, the complete download is free and non-commercial regardless of the MIT license on our code.
 
-**Banner artwork.** The frame, the title plate and the banner sound are drawn or
-synthesised by the program. They contain no Nintendo, Sega, NEC or NSUI artwork.
-The words "Virtual Console" on the title plate only describe the style; this
-project is not affiliated with or endorsed by Nintendo, Sega or NEC.
+**Banner artwork.** The frame, the title plate, the icon border and the banner
+sound are drawn or synthesised by the program. They contain no Nintendo, Sega,
+NEC or NSUI artwork: their sizes and places were measured to match NSUI's banners,
+and the program draws them itself. The words "Virtual Console" on the title plate
+only describe the style; this project is not affiliated with or endorsed by
+Nintendo, Sega or NEC.
 
 **Fonts.** No font is bundled. The title plate uses Arial Bold (or the nearest match) from your system, or a font file you choose. Sony's SCE-PS3 Rodin fonts are proprietary and are not included.
 
-**NSUI files.** If you choose a banner and icon exported from NSUI (New Super Ultimate Injector for 3DS), the app only reads the files you give it. It contains no NSUI code or assets, and a banner made this way carries NSUI's 3D model, so don't share the CIAs you make.
+**NSUI files.** If you choose a banner and icon exported from NSUI (New Super Ultimate Injector for 3DS), the app only reads the files you give it (and, for a frame banner, puts your picture and title into a copy). It contains no NSUI code or assets, and a banner made this way carries NSUI's 3D model, so don't share the CIAs you make.
+
+**bannertool's banner model.** The banner's 3D model is the one bannertool (MIT, see below) writes; the app only enlarges its picture and stores it in full color. `tests/data/bannertool-banner-model.cgfx` is a copy of that model for the tests, with bannertool's license next to it.
 
 ## Emulators inside every CIA
 

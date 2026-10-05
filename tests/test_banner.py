@@ -187,7 +187,8 @@ class NSUITemplateTests(unittest.TestCase):
                 b = nsui.Banner(path)
                 out, note = nsui.prepare(path, "Castlevania: Rondo of Blood", "1993", t, picture=a_picture())
                 where = b.picture if b.is_frame else b.screen and b.screen[0]
-                self.assertEqual(note, "your picture and title added" if where else "title added", path.name)
+                self.assertTrue(where, f"{path.name}: no frame or TV screen found for the picture")
+                self.assertEqual(note, "your picture and title added", path.name)
                 new = nsui.Banner(out).validate()
                 self.assertEqual(new.data[new.common_end:], b.data[b.common_end:])
                 texs = cgfx.textures(bytes(b.common))

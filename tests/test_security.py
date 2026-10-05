@@ -430,11 +430,16 @@ class ToolArgumentTests(unittest.TestCase):
         if not (resources.core_dir("temperpce") / "emulator.elf").is_file():
             self.skipTest("the bundled emulators aren't built here (scripts/build_emulators.sh)")
         calls = []
+        # bannertool's banner file gets its model replaced afterwards, so the fake one has to be a real-shaped CBMD
+        model = cgfx.lz11_compress((Path(__file__).parent / "data" / "bannertool-banner-model.cgfx").read_bytes()
+                                   + bytes(256 * 128 * 2))
+        model += bytes(-len(model) % 32)
+        fake_bnr = struct.pack("<34I", *([0x444D4243, 0, 0x88] + [0] * 30 + [0x88 + len(model)])) + model + b"CWAV"
 
         def fake_run(cmd, timeout=900, cwd=None):
             calls.append((cmd, cwd))
             out = cmd[cmd.index("-o") + 1]
-            Path(cwd, out).write_bytes(b"x")
+            Path(cwd, out).write_bytes(fake_bnr if "makebanner" in cmd else b"x")
         with tempfile.TemporaryDirectory() as t:
             folder = Path(t) / (JP + " game")
             folder.mkdir()

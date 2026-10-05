@@ -9,7 +9,7 @@ light things a little differently.
 import math
 import struct
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
 from . import cgfx
 from .cgfx import CGFXError, _cstr, _dict, rel, u32
@@ -79,6 +79,34 @@ def _texture_name(d, model, material_index, texnames):
     return name if name in texnames else None
 
 
+def _vertex_arrays(d, shape):
+    """(start, count, entry size, {usage: byte offset}) for each interleaved vertex buffer of a shape that has
+    positions (usage 0) as 3 floats and, if it has them, texture coordinates (usage 4) as 2 floats."""
+    va_arr = rel(d, shape + 60)
+    if u32(d, shape + 56) > MAX_LISTED or u32(d, shape + 44) > MAX_LISTED:
+        raise CGFXError("the model is damaged (too many lists)")
+    for j in range(u32(d, shape + 56)):
+        attr = rel(d, va_arr + 4 * j)
+        if u32(d, attr) != 0x40000002:                           # an interleaved vertex buffer
+            continue
+        entry, start = u32(d, attr + 36), rel(d, attr + 24)
+        if not 12 <= entry <= 256 or u32(d, attr + 40) > MAX_LISTED:
+            raise CGFXError("the model is damaged (bad vertex layout)")
+        layout = {}
+        arr = rel(d, attr + 44)
+        for k in range(u32(d, attr + 40)):
+            s = rel(d, arr + 4 * k)
+            layout[u32(d, s + 4)] = u32(d, s + 48)               # usage -> byte offset in the entry
+        if 0 not in layout:
+            continue
+        count = u32(d, attr + 20) // entry
+        if count > MAX_VERTICES or start < 0 or start + count * entry > len(d):
+            raise CGFXError("the model is damaged (bad vertex data)")
+        if layout[0] < 0 or layout[0] + 12 > entry or (4 in layout and layout[4] + 8 > entry):
+            raise CGFXError("the model is damaged (bad vertex layout)")
+        yield start, count, entry, layout
+
+
 def read_meshes(d):
     """[{node, billboard, tris}]: tris are ((x, y, z, u, v) * 3) in model space, or an empty list if the file
     isn't laid out like an NSUI banner."""
@@ -97,32 +125,11 @@ def read_meshes(d):
         if u32(d, mo + 24) >= n_shapes:
             raise CGFXError("the model is damaged (bad shape number)")
         shape = rel(d, shape_arr + 4 * u32(d, mo + 24))
-        va_arr = rel(d, shape + 60)
         mesh = dict(node=node, billboard=bones.get(node, {}).get("billboard", 0), tris=[],
                     texture=_texture_name(d, model, u32(d, mo + 28), texnames))
         world = bones.get(node, {}).get("world", ((1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0)))
         verts = None
-        if u32(d, shape + 56) > MAX_LISTED or u32(d, shape + 44) > MAX_LISTED:
-            raise CGFXError("the model is damaged (too many lists)")
-        for j in range(u32(d, shape + 56)):
-            attr = rel(d, va_arr + 4 * j)
-            if u32(d, attr) != 0x40000002:                       # an interleaved vertex buffer
-                continue
-            entry, start = u32(d, attr + 36), rel(d, attr + 24)
-            if not 12 <= entry <= 256 or u32(d, attr + 40) > MAX_LISTED:
-                raise CGFXError("the model is damaged (bad vertex layout)")
-            layout = {}
-            arr = rel(d, attr + 44)
-            for k in range(u32(d, attr + 40)):
-                s = rel(d, arr + 4 * k)
-                layout[u32(d, s + 4)] = u32(d, s + 48)           # usage -> byte offset in the entry
-            if 0 not in layout:
-                continue
-            count = u32(d, attr + 20) // entry
-            if count > MAX_VERTICES or start < 0 or start + count * entry > len(d):
-                raise CGFXError("the model is damaged (bad vertex data)")
-            if any(off < 0 or off + 12 > entry for off in (layout[0],)) or (4 in layout and layout[4] + 8 > entry):
-                raise CGFXError("the model is damaged (bad vertex layout)")
+        for start, count, entry, layout in _vertex_arrays(d, shape):
             verts = []
             for v in range(count):
                 o = start + v * entry
@@ -181,6 +188,63 @@ def textured(d, overrides=None):
     return out
 
 
+# ---------------------------------------------------------------------------------------------- flat banners
+SCREEN = (400, 240)                                      # the 3DS's top screen
+PIXELS_PER_UNIT = 10.0          # on the top screen at depth 0: 120 / tan(15 degrees) / 44.786 = 10.0003
+
+
+def screen_to_model(x, y):
+    """A point of the top screen (400 x 240 pixels) as a position in the banner model at depth 0."""
+    return (x - SCREEN[0] / 2) / PIXELS_PER_UNIT + CAM[0], CAM[1] + (SCREEN[1] / 2 - y) / PIXELS_PER_UNIT
+
+
+def flat_banner_model(base, img, quad):
+    """bannertool's flat banner model (one picture on one rectangle) showing `img` in full colour (RGBA8, where
+    bannertool uses 4 bits per channel) on the rectangle quad = (left, top, right, bottom) of the top screen, in
+    pixels. img's width must be a power of two; its height is padded with transparent rows to the next one."""
+    texs = list(cgfx.textures(base).values())
+    if len(texs) != 1 or texs[0]["data"] + texs[0]["length"] != len(base):
+        raise CGFXError("the banner model isn't laid out like bannertool's")
+    t = texs[0]
+    w, h = img.size
+    th = 8
+    while th < h:
+        th *= 2
+    if w not in (8, 16, 32, 64, 128, 256, 512, 1024) or th > cgfx.MAX_TEXTURE_SIDE:
+        raise CGFXError(f"a {w} x {h} picture can't be a banner texture")
+    tex = Image.new("RGBA", (w, th), (0, 0, 0, 0))
+    tex.paste(img.convert("RGBA"), (0, 0))
+    out = bytearray(base[:t["data"]]) + cgfx.rgba8_bytes(tex)
+
+    image = rel(base, t["txob"] + 0x38)
+    for off, value in ((t["txob"] + 0x18, th), (t["txob"] + 0x1C, w), (t["txob"] + 0x24, cgfx.GL_UNSIGNED_BYTE),
+                       (t["txob"] + 0x28, 1), (t["txob"] + 0x34, cgfx.PICA_RGBA8), (image, th), (image + 4, w),
+                       (image + 8, w * th * 4), (image + 0x14, 32)):
+        struct.pack_into("<I", out, off, value)
+    imag = cgfx.u16(base, 6) + u32(base, 0x18)            # the image block follows the data block
+    if bytes(base[imag:imag + 4]) != b"IMAG":
+        raise CGFXError("the banner model isn't laid out like bannertool's")
+    struct.pack_into("<I", out, 12, len(out))
+    struct.pack_into("<I", out, imag + 4, len(out) - imag)
+
+    model = _model(base)
+    if u32(base, model + 180) != 1:
+        raise CGFXError("the banner model isn't laid out like bannertool's")
+    arrays = list(_vertex_arrays(base, rel(base, rel(base, model + 200))))
+    if len(arrays) != 1 or arrays[0][1] != 4 or 4 not in arrays[0][3]:
+        raise CGFXError("the banner model isn't laid out like bannertool's")
+    start, count, entry, layout = arrays[0]
+    corners = [_f(base, start + v * entry + layout[0], 2) for v in range(4)]
+    mid_x, mid_y = sum(c[0] for c in corners) / 4, sum(c[1] for c in corners) / 4
+    (x0, y0), (x1, y1) = screen_to_model(quad[0], quad[1]), screen_to_model(quad[2], quad[3])
+    for v, (x, y) in enumerate(corners):
+        right, top = x > mid_x, y > mid_y
+        o = start + v * entry
+        struct.pack_into("<2f", out, o + layout[0], x1 if right else x0, y0 if top else y1)
+        struct.pack_into("<2f", out, o + layout[4], 1.0 if right else 0.0, 1.0 if top else 1.0 - h / th)
+    return bytes(out)
+
+
 # ---------------------------------------------------------------------------------------------- drawing
 def _affine(dst, src):
     """(a, b, c, d, e, f) with u = a x + b y + c and v = d x + e y + f for the three point pairs."""
@@ -231,11 +295,22 @@ def render(parts, yaw_deg=0.0, size=VIEW, ss=2):
                          [(v[3], v[4]) for v in tri]))
     work.sort(key=lambda t: -t[0])
 
-    rgb = {}
+    tiled = {}
     for _, image, pts, uvs in work:
-        tex = rgb.setdefault(id(image), image.convert("RGB"))
-        tw, th = tex.size
-        coeffs = _affine(pts, [(u * tw, (1 - v) * th) for u, v in uvs])
+        su, sv = math.floor(min(u for u, _ in uvs)), math.floor(min(v for _, v in uvs))
+        uvs = [(u - su, v - sv) for u, v in uvs]             # a repeating texture: n x n copies of it cover these
+        n = max(1, math.ceil(max(max(uv) for uv in uvs) - 1e-6))
+        if n > 4:
+            continue
+        if (id(image), n) not in tiled:
+            one = image.convert("RGBA")
+            many = Image.new("RGBA", (one.width * n, one.height * n))
+            for i in range(n * n):
+                many.paste(one, (i % n * one.width, i // n * one.height))
+            tiled[id(image), n] = many
+        tex = tiled[id(image), n]
+        tw, th = tex.width / n, tex.height / n
+        coeffs = _affine(pts, [(u * tw, (n - v) * th) for u, v in uvs])
         if coeffs is None:
             continue
         cx, cy = sum(p[0] for p in pts) / 3, sum(p[1] for p in pts) / 3
@@ -253,7 +328,7 @@ def render(parts, yaw_deg=0.0, size=VIEW, ss=2):
         patch = tex.transform((x1 - x0, y1 - y0), Image.AFFINE, local, Image.BILINEAR)
         mask = Image.new("L", (x1 - x0, y1 - y0), 0)
         ImageDraw.Draw(mask).polygon([(p[0] - x0, p[1] - y0) for p in grown], fill=255)
-        img.paste(patch, (x0, y0), mask)
+        img.paste(patch.convert("RGB"), (x0, y0), ImageChops.multiply(mask, patch.getchannel("A")))
 
     for m in plates:                                        # the title plate faces the camera
         xs = [v[0] for t in m["tris"] for v in t]

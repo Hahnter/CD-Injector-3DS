@@ -293,9 +293,9 @@ def build(opt: BuildOptions, progress=lambda frac, msg: None) -> Path:
         year = opt.year.strip()
         if opt.banner_file and not is_picture(opt.banner_file):
             banner = _read_ready_made(opt.banner_file, b"CBMD", "banner")
-            try:                                                 # an NSUI banner with a blank plate gets its plate drawn
-                banner, added = nsui.prepare(banner, title, year, tmp, opt.plate_font)
-                opt.info["banner_kind"] = "NSUI banner" + (" (title plate added)" if added else "")
+            try:                                                 # this game's title (and picture) go on an NSUI banner
+                banner, note = nsui.prepare(banner, title, year, tmp, opt.plate_font, opt.image)
+                opt.info["banner_kind"] = "NSUI banner" + (f" ({note})" if note else "")
             except nsui.DamagedBannerError as e:                 # a broken banner could stop the Home Menu showing the game
                 raise BuildError(str(e))
             except nsui.NSUIError:
@@ -304,7 +304,7 @@ def build(opt: BuildOptions, progress=lambda frac, msg: None) -> Path:
                 except nsui.NSUIError as e:
                     raise BuildError(str(e))
                 opt.info["banner_kind"] = "your banner file"
-            except RuntimeError as e:
+            except PICTURE_ERRORS + (RuntimeError,) as e:
                 raise BuildError(f"Couldn't use the banner: {e}")
         else:
             banner = tmp / "banner.bnr"

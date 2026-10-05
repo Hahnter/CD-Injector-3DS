@@ -28,8 +28,10 @@ option.
 - **Self-contained.** The whole CD image (every track, CD audio included) and the BIOS go inside the CIA.
 - **Boots straight into the game.** Saves go to `sdmc:/emus3ds/saves/<game>/`, including when you close the game
   from HOME.
-- **A Home Menu banner and icon** made from your game's title screen, or taken from a banner you exported from NSUI.
-  See [Your options](#your-options).
+- **A Home Menu banner and icon that match NSUI's.** The banner puts your game's title screen in a frame, in full
+  color, with the Virtual Console title plate below, in the same place and style as NSUI's frame banners. The icon
+  gets the same silver border. Or use a banner you exported from NSUI, and your picture and title go into it. See
+  [Your options](#your-options).
 
 NSUI (New Super Ultimate Injector) makes CIAs for cartridge consoles but not for these two CD systems. This app
 covers that gap.
@@ -76,26 +78,41 @@ All of these are in step 4. None of them are required.
 | Game title, Publisher, Year | Shown on the banner's plate and under the icon on the Home Menu. The title is filled in from the file name; change it if you like. Titles in any language work, Japanese included. |
 | Picture | A title screen or box art. It becomes the picture on the banner and the icon. |
 | Banner: *Title screen in a colored frame* | Makes the banner from your picture. Pick the frame color from the swatches, choose **Custom...** for any color, or **Reset** for the console's own (orange for PC Engine CD, blue for Sega CD). |
-| Banner: *3D console + TV banner from NSUI* | Uses a banner and icon you exported from NSUI. See below. |
+| Banner: *3D banner from NSUI* | Uses a banner and icon you exported from NSUI. See below. |
 | More options... | How the picture fits the icon, your own banner sound, and the font used on the title plate. |
 
-The preview in the window shows the banner and icon as they'll look. The frame follows the shape of your picture,
-so nothing is cropped.
+The preview in the window shows the banner and icon as they'll look on the top screen. The frame, the picture and
+the title plate have the same size and place as in NSUI's frame banners, so a CD game sits well next to your GBA, NES
+or Genesis ones. The banner is stored in full color (8 bits per channel; bannertool's own banners have 4).
+
+- **The picture** fills the frame's window. A title screen at a console's own resolution (256 x 224, 320 x 224 and
+  so on) is first stretched to the 4:3 shape a TV gave it, and a 4:3 picture loses a little at the top and bottom
+  (about 7% each) to fill the window, which is as wide as a GBA screen.
+- **The title plate** matches NSUI's: its badge, rim and face, the title in Arial Bold at 11 pt on one or two lines
+  (8.5 pt when it needs three), and "Released: year" below.
+- **The icon** is your picture inside the silver Virtual Console border NSUI gives its icons.
 
 ### A banner and icon from NSUI
 
-NSUI can't make CIAs from Sega CD or PC Engine CD games, but it can for Genesis and TurboGrafx cartridge games, and
-it gives those a 3D console, controller and TV banner. To put that banner on a CD game:
+NSUI can't make CIAs from Sega CD or PC Engine CD games, but it can for cartridge games, and its banners are 3D. Two
+kinds can go on a CD game:
 
-1. In NSUI, set up a Genesis or TurboGrafx game with the title screen you want, and export its **banner** and
-   **icon** (`<game>_banner.bin`, `<game>_icon.bin`).
-2. In this app, set **Banner** to *3D console + TV banner from NSUI* and choose the banner file. If the icon is next
-   to it under NSUI's usual name, it's filled in for you. Switch **Banner** back any time to use the colored frame.
+- **A "3D frame with color" banner, from any game, works for every game.** Export one once (the GBA ones use this
+  style), and the app puts each CD game's picture in the frame and its title and year on the plate. The 3D frame, its
+  color and movement, the plate's badge and the sound stay NSUI's. Pick the frame color in NSUI before you export;
+  export a second one in another color if you want, say, orange for PC Engine CD and blue for Sega CD.
+- **A 3D console + TV banner** (Genesis or TurboGrafx) is used exactly as NSUI made it, so set that game up in NSUI
+  with the title screen you want. Some of these exports (the PC Engine ones) leave the title plate blank; then the
+  app draws the plate with your title and year.
 
-The banner is used exactly as NSUI made it: its 3D models (every language slot included), TV picture and sound are
-copied byte for byte. There is one repair. Some NSUI exports (the PC Engine ones) leave the title plate blank, so
-the app draws the plate with your title and year and rewrites only that part. A plate that's already filled in is
-left alone. The preview shows the banner's 3D console, TV and plate as a still picture.
+1. In NSUI, export the game's **banner** and **icon** (`<game>_banner.bin`, `<game>_icon.bin`).
+2. In this app, set **Banner** to *3D banner from NSUI* and choose the banner file. If the icon is next to it under
+   NSUI's usual name, it's filled in for you. For a frame banner, also choose the game's **Picture**. Switch
+   **Banner** back any time to use the colored frame.
+
+Only the banner's main 3D model is rewritten, and only its picture and plate in it. Its other models (every
+language slot) and its sound are copied byte for byte. The preview shows the banner's 3D model and plate as a still
+picture.
 
 Nothing from NSUI is included in this app; it only reads the files you export. Because such a banner carries NSUI's
 3D model, keep those CIAs to yourself (you shouldn't share any CIA you make anyway, see below).
@@ -106,10 +123,10 @@ Nothing from NSUI is included in this app; it only reads the files you export. B
   direction gets black bars.
 - **Banner sound:** a `.wav` (8- or 16-bit PCM, at most 3 seconds) or a `.bcwav` that plays on the Home Menu. Empty
   means a short chime made by this program. An NSUI banner keeps its own sound.
-- **Title plate font:** any `.ttf` or `.otf` file, used for the title and "Released" text on the plate. Official
-  Virtual Console banners look closest with Sony's "SCE-PS3 Rodin Latin Bold". It can't be included here, but it
-  works if you point the app at your own copy (an RPCS3 install has it at
-  `dev_flash\data\font\SCE-PS3-RD-B-LATIN.TTF`). Empty means Arial Bold.
+- **Title plate font:** any `.ttf` or `.otf` file, used for the title and "Released" text on the plate. Empty
+  means Arial Bold, the font NSUI uses, so the plate matches your NSUI-made banners. Nintendo's own Virtual Console
+  banners use Rodin; Sony's "SCE-PS3 Rodin Latin Bold" looks closest to it. It can't be included here, but it works
+  if you point the app at your own copy (an RPCS3 install has it at `dev_flash\data\font\SCE-PS3-RD-B-LATIN.TTF`).
 
 The NSUI banner and icon fields also accept an ordinary picture (PNG, JPG and so on) to use as the banner or icon as
 it is.

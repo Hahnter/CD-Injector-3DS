@@ -42,8 +42,11 @@ option.
 NSUI (New Super Ultimate Injector) makes CIAs for cartridge consoles but not for these two CD systems. This app
 covers that gap.
 
-**Status:** stable. Tested on real hardware with Sonic CD (Sega CD) and Castlevania: Rondo of Blood (PC Engine CD),
-with both banner styles. See [Compatibility](#compatibility) and the [FAQ](#faq).
+**Status:** stable. The emulators are tested on real hardware with Sonic CD (Sega CD) and Castlevania: Rondo of
+Blood (PC Engine CD). The 3D banners new in 1.2.0 (Frame and CD case in layers, and NSUI's banners made from NSUI)
+haven't been confirmed on a 3DS yet: if a banner doesn't show up right on the Home Menu, please
+[open an issue](https://github.com/Hahnter/CD-Injector-3DS/issues/new/choose) with a screenshot. See
+[Compatibility](#compatibility) and the [FAQ](#faq).
 
 ## What you need
 
@@ -82,11 +85,12 @@ All of these are in step 4. None of them are required.
 | Option | What it does |
 | --- | --- |
 | Game title, Publisher, Year | Shown on the banner's plate and under the icon on the Home Menu. Filled in for you when the game is recognised (see below), else the title comes from the file name; change any of them if you like. Titles in any language work, Japanese included. |
-| Picture | A title screen or box art. It becomes the picture on the banner and the icon. Found for you in RetroArch's thumbnails when they're on the PC. |
+| Picture | A title screen or box art. It becomes the picture on the banner and the icon. Found for you in RetroArch's thumbnails when they're on the PC, or press **Download** to fetch it from libretro's thumbnails. |
 | Banner: *Frame* | Your picture set into a colored frame. Pick the frame color from the swatches, choose **Custom...** for any color, or **Reset** for the console's own (orange for PC Engine CD, blue for Sega CD). |
-| Banner: *CD case* | The game's cover in a CD case, with the disc sliding out and the title screen printed on the disc. The cover is the game's box art, found or downloaded like the picture, or chosen next to **Cover**; without one, the picture is used. |
+| Banner: *CD case* | The game's cover in a CD case, with the disc sliding out and the title screen printed on the disc. |
+| Cover *(CD case only)* | The game's box art for the case. Found for you like the picture, fetched with **Download**, or chosen with **Choose a picture...**; without one, the picture is used. |
 | Banner: *3D banner from NSUI* | Uses NSUI's 3D banners, made from your copy of NSUI or exported from it. See below. |
-| More options... | How the picture fits the icon, how the plate's text is written (NSUI's way or Nintendo's), your own banner sound, and the font used on the title plate. |
+| More options... | How the picture fits the icon, how the plate's text is written (NSUI's way or Nintendo's), your own banner sound, the font used on the title plate, and how the title, year and pictures are filled in. |
 
 The preview in the window shows the banner and icon as they'll look on the top screen. Both of the app's own banners
 are stored in full color (8 bits per channel; bannertool's own banners have 4) and are made of layers at different
@@ -116,10 +120,12 @@ replaces anything you typed or chose, and recognising the disc never goes online
 - **The picture** comes from RetroArch's thumbnails when RetroArch is on the PC (a title screen if there is one, else
   a screenshot, else box art), or from a folder of your own pictures named after the games (**More options >
   Pictures folder**).
-- **The cover** for the CD case banner is the game's box art, found and downloaded the same way.
-- **Or download it:** press **Download** next to the picture, and the app fetches the game's picture from libretro's
-  thumbnails, the collection RetroArch and NSUI use. To do that for every game that has no picture on the PC, turn it
-  on in **More options**. Each picture is downloaded once and kept with the app's settings.
+- **The cover** for the CD case banner is the game's box art, found the same way.
+- **Or download it:** press **Download** next to the picture (or next to the cover), and the app fetches the game's
+  title screen (or box art) from libretro's thumbnails, the collection RetroArch and NSUI use. A game whose picture
+  libretro keeps under a slightly different name is found too. To do that for every game that has no picture on the
+  PC, turn it on in **More options**. Each picture is downloaded once and kept with the app's settings
+  (`%APPDATA%\CD Injector 3DS\pictures`).
 
 The details come from the lists of [Redump](http://redump.org/) (via libretro's database) and MAME, which come with
 the app. They cover about 560 PC Engine CD and 580 Sega CD discs. You can turn filling in off in **More options**.
@@ -184,6 +190,12 @@ The preview shows the banner's 3D model and plate as a still picture.
   the app at your own copy (an RPCS3 install has it at `dev_flash\data\font\SCE-PS3-RD-B-LATIN.TTF`). With official
   style it gives the closest match to Nintendo's banners.
 
+- **Fill in:** turn off filling in the title, publisher, year and pictures when the game is recognised.
+- **Pictures folder:** where to look for each game's picture: RetroArch's thumbnails folder, or your own folder of
+  pictures named after the games. Empty means RetroArch's thumbnails, if RetroArch is on the PC.
+- **Download the picture when there's none on this PC:** off by default. When it's on, the app downloads the picture
+  (and, for the CD case, the cover) of every recognised game that has none on the PC.
+
 The NSUI banner and icon fields also accept an ordinary picture (PNG, JPG and so on) to use as the banner or icon as
 it is.
 
@@ -201,9 +213,16 @@ it is.
 
 ```
 python cd_injector.py build "Game folder" --system pce --bios Bios --title "Game Title" --year 1993 --image title.png --frame-color "#d63030"
-python cd_injector.py build "Game folder" --system segacd --title "Game Title" --year 1993 --banner-file game_banner.bin --icon-file game_icon.bin
+python cd_injector.py build "Game folder" --banner-style cdcase --cover box.png --plate-style official
+python cd_injector.py build "Game folder" --download-picture --nsui "C:\NSUI\New Super Ultimate Injector for 3DS.exe" --console turbografx_16
+python cd_injector.py build "Game folder" --system segacd --banner-file game_banner.bin --icon-file game_icon.bin
 python cd_injector.py build --help
 ```
+
+What you don't give is filled in as in the app: the title, publisher, year and picture of a recognised disc (turn it
+off with `--no-lookup`), with `--pictures <folder>` to look somewhere else and `--download-picture` to fetch a missing
+picture. The banner is chosen with `--banner-style frame|cdcase`, `--nsui`/`--console` (NSUI's banners) or
+`--banner-file`, and the plate's text with `--plate-style nsui|official` and `--plate-font`. `--help` lists them all.
 
 ## Compatibility
 
@@ -255,11 +274,12 @@ No. They contain the game and the BIOS.
 ## Privacy and security
 
 - **No tracking, and online only when you ask.** The app collects nothing. It goes online only to download a
-  game's picture: when you press **Download**, or for every game if you turn that on in **More options**. It then
-  fetches that one picture from libretro's thumbnails on GitHub and sends nothing about you or your PC. It reads only
-  the files you choose, and writes only the CIA, temporary files (removed when it finishes), the pictures it
-  downloads and a small settings file (`%APPDATA%\CD Injector 3DS\settings.json`) with the paths and colors you
-  picked.
+  game's picture or box art: when you press **Download**, or for every game if you turn that on in **More options**.
+  It then fetches that one picture from libretro's thumbnails on GitHub and sends nothing about you or your PC.
+- **It reads only the files you choose** (NSUI's program included, which it only reads: it never runs or changes
+  it), and writes only the CIA, temporary files (removed when it finishes), the pictures it downloads, the NSUI
+  banners you make and a small settings file (`%APPDATA%\CD Injector 3DS\settings.json`) with the paths and colors
+  you picked.
 - **Files are checked before use.** A damaged, oversized or booby-trapped `.cue`, banner, icon, picture or sound
   gives an error message instead of being used. Only files inside the game's own folder are packed into a CIA.
 - **Checking a download.** Each release has a `SHA256SUMS.txt`; compare it with
@@ -315,6 +335,7 @@ with credit. The download also bundles other people's work, which keeps its own 
 - **PicoDrive** by notaz, irixxxx and contributors
 - **bannertool** by Steveice10 (MIT)
 - **makerom** by 3DSGuy, applestash and Jakcron (MIT)
+- **M PLUS 1p Bold** by the M+ Project Authors (SIL Open Font License 1.1), the official-style plate font
 
 The list of games the app recognises (`cdinjector/gamelist.py`) comes from libretro's database (CC BY-SA 4.0) and
 MAME's software lists (CC0), and is shared under CC BY-SA 4.0.

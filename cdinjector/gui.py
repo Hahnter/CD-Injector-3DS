@@ -59,7 +59,8 @@ HELP = [
           "game is recognised (Sega CD discs carry their own details; PC Engine CD and Sega CD discs are also looked "
           "up in lists that come with the app), else the title comes from the file name. Change any of them."),
     ("b", "Picture: a title screen or box art. It becomes the picture on the banner and the icon. It's found for you "
-          "in RetroArch's thumbnails when they're on this PC, or in your own pictures folder (More options)."),
+          "in RetroArch's thumbnails when they're on this PC, or in your own pictures folder (More options), or "
+          "press Download to fetch it from libretro's thumbnails."),
     ("b", "Banner: \"Frame\" puts your picture in a colored frame, in the same layout as NSUI's frame banners, "
           "and you choose the frame color. \"CD case\" shows the game's cover (its box art, found or downloaded like "
           "the picture, or chosen next to Cover) in a CD case, with the disc sliding out. Both stand out of the "
@@ -70,8 +71,9 @@ HELP = [
           "makes the banner from the parts inside it. A banner you exported from NSUI works too. Every game gets "
           "its picture on the TV or in the frame and its title on the plate, and the app remembers which banner "
           "goes with which console. It keeps NSUI's 3D model and tune."),
-    ("b", "More options: how the picture fits the icon, your own banner sound, and the font used on the title "
-          "plate."),
+    ("b", "More options: how the picture fits the icon, how the plate's text is written (NSUI style, in Arial Bold, "
+          "or official style, laid out like Nintendo's own Virtual Console banners), your own banner sound, the font "
+          "used on the title plate, and how the title, year and pictures are filled in."),
     ("h2", "Good to know"),
     ("b", "The CIA is about as big as the disc. FBI needs that much free space again while installing, and you "
           "can delete the .cia afterwards."),
@@ -83,9 +85,9 @@ HELP = [
     ("b", "Never share a CIA you made: it contains the game and the BIOS."),
     ("h2", "Privacy and safety"),
     ("b", "This app collects nothing, and it only goes online to download a game's picture: when you press Download, "
-          "or for every game if you turn that on in More options. It reads only the files you choose and "
-          "writes only the CIA, a small settings file (the paths and colors you picked) and the pictures it downloads, "
-          "in your user profile."),
+          "or for every game if you turn that on in More options. It reads only the files you choose (NSUI's "
+          "program is only read, never run or changed) and writes only the CIA, a small settings file (the paths and "
+          "colors you picked), the pictures it downloads and the NSUI banners you make, in your user profile."),
     ("b", "Files you choose are checked before use: a damaged or oversized file gives an error message instead of "
           "being used."),
 ]

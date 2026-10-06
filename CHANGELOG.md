@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- The in-app help (**How to use**) describes the **Download** buttons, **Plate text** and filling in, and
+  says where the NSUI banners you make are kept.
+
 ## 1.2.0 (2026-10-06)
 
 Banners that look good with or without NSUI, games that fill themselves in, and NSUI's own 3D banners without the

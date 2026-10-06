@@ -137,6 +137,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+### M PLUS 1p Bold (the official-style plate font)
+`resources/fonts/MPLUS1p-Bold-Latin.ttf` is M PLUS 1p Bold, Copyright 2016 The M+ Project Authors, from Google Fonts
+(<https://github.com/google/fonts/tree/main/ofl/mplus1p>), cut down to its Latin letters. It is licensed under the SIL
+Open Font License 1.1; the full text is in `resources/fonts/OFL.txt` and, in the Windows app, in the `licenses`
+folder (`M-PLUS-1p-OFL.txt`).
+
 ### Python runtime and libraries (packaged by PyInstaller)
 The Windows app contains Python (PSF License, which also covers the libraries in Python's Windows build such as
 OpenSSL, libffi and bzip2), Tcl and Tk (BSD-style licenses) and Pillow (MIT-CMU license, which also covers the image

@@ -38,6 +38,7 @@ class BuildOptions:
     frame_color: tuple = None         # (r, g, b) of the banner's frame; None = the system's own colour
     sound_file: Path = None           # optional .wav / .bcwav banner sound
     plate_font: Path = None           # optional font file for the title plate's text
+    plate_style: str = "nsui"         # the plate's text laid out as NSUI does ("nsui") or as Nintendo does ("official")
     lookup: bool = False              # fill in an empty title, publisher, year and picture when the disc is recognised
     pictures_dir: Path = None         # where to look for the picture (None: RetroArch's thumbnails, if found)
     download_picture: bool = False    # with lookup: download the picture from libretro's thumbnails if none is found
@@ -219,6 +220,8 @@ def preflight(opt: BuildOptions):
             bn.check_sound(opt.sound_file)
         except bn.SoundError as e:
             raise BuildError(str(e))
+    if opt.plate_style not in bn.PLATE_STYLES:
+        raise BuildError(f"The plate text style must be one of: {', '.join(bn.PLATE_STYLES)}.")
     if opt.plate_font and not Path(opt.plate_font).is_file():
         raise BuildError("The title plate font was not found:" + chr(10) + str(opt.plate_font))
     if opt.nsui_program and not opt.banner_file:
@@ -343,7 +346,7 @@ def build(opt: BuildOptions, progress=lambda frac, msg: None) -> Path:
         if banner_file and not is_picture(banner_file):
             banner = _read_ready_made(banner_file, b"CBMD", "banner")
             try:                                                 # this game's title (and picture) go on an NSUI banner
-                banner, note = nsui.prepare(banner, title, year, tmp, opt.plate_font, opt.image)
+                banner, note = nsui.prepare(banner, title, year, tmp, opt.plate_font, opt.image, opt.plate_style)
                 opt.info["banner_kind"] = "NSUI banner" + (f" ({note})" if note else "")
             except nsui.DamagedBannerError as e:                 # a broken banner could stop the Home Menu showing the game
                 raise BuildError(str(e))
@@ -364,7 +367,8 @@ def build(opt: BuildOptions, progress=lambda frac, msg: None) -> Path:
                     opt.info["banner_kind"] = "your banner picture"
                 else:
                     opt.info["banner"] = bn.make_banner(opt.image, title, year, system, opt.sound_file, banner, tmp,
-                                                        color=color, font_file=opt.plate_font)
+                                                        color=color, font_file=opt.plate_font,
+                                                        plate_style=opt.plate_style)
                     opt.info["banner_kind"] = "title screen in a coloured frame"
             except PICTURE_ERRORS as e:
                 raise BuildError(f"Couldn't make the banner: {e}")

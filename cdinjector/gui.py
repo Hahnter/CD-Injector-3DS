@@ -13,7 +13,7 @@ from PIL import Image, ImageTk
 
 from . import APP_NAME, VERSION
 from . import banner as bn
-from . import download, gameinfo, nsui
+from . import download, gameinfo, nsui, nsui_program
 from .builder import BuildError, BuildOptions, build, check, clean_title, is_picture, resolve_cue
 from .disc import SYSTEMS
 
@@ -60,11 +60,13 @@ HELP = [
     ("b", "Picture: a title screen or box art. It becomes the picture on the banner and the icon. It's found for you "
           "in RetroArch's thumbnails when they're on this PC, or in your own pictures folder (More options)."),
     ("b", "Banner: \"Title screen in a colored frame\" makes a banner from your picture in the same layout as "
-          "NSUI's frame banners, and you choose the frame color. \"3D banner from NSUI\" uses a banner you exported "
-          "from NSUI (New Super Ultimate Injector): a 3D console + TV (say PC Engine for PC Engine CD games and "
-          "Genesis for Sega CD games) or a \"3D frame with color\". Export one per console, once: every game gets "
+          "NSUI's frame banners, and you choose the frame color. \"3D banner from NSUI\" uses NSUI's 3D banners "
+          "(New Super Ultimate Injector): a console + TV (the Genesis for Sega CD games; the PC Engine, the "
+          "TurboGrafx-16, or both by region for PC Engine CD games) or a 3D frame. Pick one next to From NSUI and "
+          "click Make: the first time, choose NSUI's program (New Super Ultimate Injector for 3DS.exe) and the app "
+          "makes the banner from the parts inside it. A banner you exported from NSUI works too. Every game gets "
           "its picture on the TV or in the frame and its title on the plate, and the app remembers which banner "
-          "goes with which console. It keeps NSUI's 3D model and sound."),
+          "goes with which console. It keeps NSUI's 3D model and tune."),
     ("b", "More options: how the picture fits the icon, your own banner sound, and the font used on the title "
           "plate."),
     ("h2", "Good to know"),
@@ -316,14 +318,25 @@ class App(tk.Tk):
         nf.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 0))
         nf.columnconfigure(1, weight=1)
         self.f_nsui = nf
-        ttk.Label(nf, text="Choose a banner exported from NSUI (a console + TV or a \"3D frame with color\" one). "
-                           "It's remembered for each console, and every game gets its picture and title on it. Leave "
-                           "Icon file empty to make the icon from your picture.",
+        ttk.Label(nf, text="Make NSUI's banner from your copy of NSUI (you choose its program once), or choose a banner "
+                           "exported from NSUI. It's remembered for each console, and every game gets its picture "
+                           "and title on it. Leave Icon file empty to make the icon from your picture.",
                   style="Hint.TLabel", wraplength=580, justify="left").grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 3))
+        ttk.Label(nf, text="From NSUI").grid(row=1, column=0, sticky="w", pady=2)
+        self.v_nsui_console = tk.StringVar()
+        self.cb_nsui_console = ttk.Combobox(nf, textvariable=self.v_nsui_console, state="readonly")
+        self.cb_nsui_console.grid(row=1, column=1, sticky="ew", padx=8)
+        self.cb_nsui_console.bind("<<ComboboxSelected>>", lambda e: self._remember_nsui_console())
+        self.b_nsui_make = ttk.Button(nf, text="Make", command=self.make_from_nsui)
+        self.b_nsui_make.grid(row=1, column=2)
+        Tooltip(self.b_nsui_make, "Make this banner from NSUI's program and use it for this console's games")
+        b = ttk.Button(nf, text="NSUI…", command=lambda: self.make_from_nsui(choose=True))
+        b.grid(row=1, column=3, padx=(4, 0))
+        Tooltip(b, "Choose NSUI's program (New Super Ultimate Injector for 3DS.exe), then make the banner")
         for r, (label, var, key, types) in enumerate([
                 ("Banner file", self.v_banner_file, "nsui_banner", [("3DS banner or picture", "*.bin *.bnr " + PICTURES)]),
                 ("Icon file", self.v_icon_file, "nsui_icon", [("3DS icon or picture", "*.bin *.icn *.smdh " + PICTURES)])],
-                start=1):
+                start=2):
             ttk.Label(nf, text=label).grid(row=r, column=0, sticky="w", pady=2)
             ttk.Entry(nf, textvariable=var).grid(row=r, column=1, sticky="ew", padx=8)
             ttk.Button(nf, text="Choose…", command=lambda v=var, t=types: self._pick_banner_file(v, t)).grid(
@@ -545,6 +558,62 @@ class App(tk.Tk):
         system = self.system_choice()
         for var, key in ((self.v_banner_file, "nsui_banner"), (self.v_icon_file, "nsui_icon")):
             var.set(self.settings.get(f"{key}_{system}", ""))
+        if system in nsui_program.DEFAULT_CONSOLE:
+            choices = nsui_program.consoles_for(system)
+            self.cb_nsui_console.config(values=[label for _, label in choices])
+            chosen = self.settings.get(f"nsui_console_{system}", nsui_program.DEFAULT_CONSOLE[system])
+            self.v_nsui_console.set(dict(choices).get(chosen, choices[0][1]))
+
+    def _nsui_console_key(self):
+        system = self.system_choice()
+        labels = {label: key for key, label in nsui_program.consoles_for(system)}
+        return labels.get(self.v_nsui_console.get(), nsui_program.DEFAULT_CONSOLE[system])
+
+    def _remember_nsui_console(self):
+        system = self.system_choice()
+        if system:
+            self._remember(f"nsui_console_{system}", self._nsui_console_key())
+
+    def make_from_nsui(self, choose=False):
+        """Make the chosen NSUI banner from NSUI's program file (asked for once, then remembered) and use it as this
+        console's banner, in the background (see nsui_program.py)."""
+        system = self.system_choice()
+        if system not in nsui_program.DEFAULT_CONSOLE:
+            return
+        program = self.settings.get("nsui_program", "")
+        if choose or not program or not Path(program).is_file():
+            start = Path(program).parent if program else self.settings.get("nsui_dir")
+            program = filedialog.askopenfilename(
+                title="Choose NSUI's program: New Super Ultimate Injector for 3DS.exe",
+                filetypes=[("NSUI's program", "*.exe"), ("All files", "*.*")], initialdir=start or None)
+            if not program:
+                return
+            self._remember("nsui_program", program)
+        console = self._nsui_console_key()
+        self.b_nsui_make.state(["disabled"])
+        self.l_status.config(text="Making NSUI's banner from its program…", foreground=MUTED)
+
+        def work():
+            import tempfile
+            dest = nsui_program.banners_folder() / f"{console}-{system}.bin"
+            try:
+                with tempfile.TemporaryDirectory(prefix="cdinjector_nsui_") as t:
+                    self.q.put(("nsui", system, nsui_program.build_banner(program, console, system, dest, t), None))
+            except nsui_program.NSUIProgramError as e:
+                self.q.put(("nsui", system, None, str(e)))
+            except (nsui.NSUIError, OSError, RuntimeError) as e:
+                self.q.put(("nsui", system, None, f"Couldn't make NSUI's banner: {e}"))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _show_nsui_banner(self, system, path, error):
+        self.b_nsui_make.state(["!disabled"])
+        if path is None:
+            self.l_status.config(text="NSUI's banner couldn't be made. See the message for why.", foreground=BAD)
+            messagebox.showerror(APP_NAME, error)
+            return
+        if system == self.system_choice():
+            self.v_banner_file.set(str(path))
+        self.l_status.config(text=f"✓ Made NSUI's banner: {self.v_nsui_console.get()}.", foreground=OK)
 
     def nsui_mode(self):
         return self.v_style.get() == STYLES[1]
@@ -785,7 +854,7 @@ class App(tk.Tk):
                 elif not self.ready:
                     msg = "Fix the problem shown under step 3."
                 elif missing:
-                    msg = "Choose the banner file you exported from NSUI (step 4), or switch Banner back to the colored frame."
+                    msg = "Make NSUI's banner (From NSUI > Make) or choose one you exported, or switch Banner back to the colored frame."
                 else:
                     msg = "Fix the items marked ✗."
                 self.l_status.config(text=msg, foreground=MUTED)
@@ -934,6 +1003,8 @@ class App(tk.Tk):
                         self._show_check(item[2])
                 elif item[0] == "picture":
                     self._show_download(*item[1:])
+                elif item[0] == "nsui":
+                    self._show_nsui_banner(*item[1:])
                 elif item[0] == "progress":
                     self.pb["value"] = int(item[1] * 1000)
                     self.l_status.config(text=item[2], foreground=MUTED)

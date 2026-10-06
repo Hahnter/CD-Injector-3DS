@@ -8,6 +8,7 @@ from pathlib import Path
 
 from . import APP_NAME, VERSION
 from . import banner as bn
+from . import nsui_program
 from .builder import BuildError, BuildOptions, build
 
 
@@ -22,7 +23,7 @@ def _build(a):
                        system=a.system, out_dir=a.out, image=a.image, icon_fit=a.icon_fit,
                        icon_file=a.icon_file, banner_file=a.banner_file, frame_color=color,
                        sound_file=a.sound, plate_font=a.plate_font, lookup=not a.no_lookup, pictures_dir=a.pictures,
-                       download_picture=a.download_picture)
+                       download_picture=a.download_picture, nsui_program=a.nsui, nsui_console=a.console)
     last = [-1]
 
     def progress(frac, msg):
@@ -82,6 +83,12 @@ def main(argv=None):
     b.add_argument("--pictures", type=Path, help="folder to find the game's picture in (default: RetroArch's thumbnails)")
     b.add_argument("--download-picture", action="store_true",
                    help="if no picture is found on this PC, download one from libretro's thumbnails (goes online)")
+    b.add_argument("--nsui", type=Path, metavar="NSUI_EXE",
+                   help="make NSUI's 3D banner from your copy of NSUI (its New Super Ultimate Injector for 3DS.exe)")
+    b.add_argument("--console", default="", choices=["", *nsui_program.CONSOLES], metavar="NAME",
+                   help="with --nsui: which banner. " + "; ".join(f"{k}: {c.label}" for k, c in
+                                                                 nsui_program.CONSOLES.items())
+                   + " (default: genesis for Sega CD, pc_engine for PC Engine CD)")
     b.add_argument("--no-lookup", action="store_true",
                    help="don't fill in the title, publisher, year and picture from what the disc is recognised as")
     b.set_defaults(run=_build)

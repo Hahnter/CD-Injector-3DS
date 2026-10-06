@@ -9,9 +9,10 @@
   `cdinjector/download.py`; the tests fail if any other part of the app gets networking code, or if that file names
   a second web address.)
 - It reads only the files you choose: the game's `.cue` and `.bin` files, the BIOS, a picture, and an optional NSUI
-  banner, icon, sound or font.
-- It writes only the CIA, temporary files (deleted when it finishes) and one small settings file,
-  `%APPDATA%\CD Injector 3DS\settings.json`, holding the paths and colors you chose.
+  banner, icon, sound or font, or NSUI's own program file (only read, never run or changed) to make NSUI's banner.
+- It writes only the CIA, temporary files (deleted when it finishes), one small settings file,
+  `%APPDATA%\CD Injector 3DS\settings.json`, holding the paths and colors you chose, and the NSUI banners you make
+  (in `%APPDATA%\CD Injector 3DS\nsui banners`).
 - It runs its two helper programs (`makerom` and `bannertool`) directly with a list of arguments, never through a
   shell, and stops them if they hang. They run inside a private work folder and only ever get plain relative file
   names made by the app, never a name taken from your files.
@@ -27,7 +28,9 @@ Every file you choose is checked before it is used, and a bad one gives an error
 - `.cue` sheets: size and track-count limits; only files that sit in the `.cue`'s own folder are packed, so a
   crafted sheet can't pull another file on your PC into a CIA (shortcuts to files elsewhere are refused too).
 - NSUI banners and icons: size limits, structure checks, and a cap on how far a compressed model may expand (a
-  "decompression bomb" is refused). A damaged banner is refused rather than put in a CIA, because a broken banner
+  "decompression bomb" is refused). NSUI's program file is read through a memory map (it is never loaded whole or
+  run); its resource table is read with bounds checks, and each part it names is size-limited and checked like a
+  banner before bannertool sees it. A damaged banner is refused rather than put in a CIA, because a broken banner
   can stop the Home Menu showing the game.
 - Pictures: a pixel limit against decompression bombs, and each picture is fully decoded before the game is
   copied.

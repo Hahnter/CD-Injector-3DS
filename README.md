@@ -33,8 +33,8 @@ option.
   [Filled in for you](#filled-in-for-you).
 - **A Home Menu banner and icon that match NSUI's.** The banner puts your game's title screen in a frame, in full
   color, with the Virtual Console title plate below, in the same place and style as NSUI's frame banners. The icon
-  gets the same silver border. Or use NSUI's 3D PC Engine, Genesis or frame banner as a template: export it once
-  and every game gets its picture and title on it. See [Your options](#your-options).
+  gets the same silver border. Or use NSUI's 3D Genesis, PC Engine, TurboGrafx-16 or frame banner: point the app at
+  your copy of NSUI once and every game gets its picture and title on it. See [Your options](#your-options).
 
 NSUI (New Super Ultimate Injector) makes CIAs for cartridge consoles but not for these two CD systems. This app
 covers that gap.
@@ -119,27 +119,41 @@ in now differs from the one you used then, type the old one to update that copy 
 
 ### A banner and icon from NSUI
 
-NSUI can't make CIAs from Sega CD or PC Engine CD games, but it can for cartridge games, and its banners are 3D. A
-banner exported from NSUI works as a template: export one per console, once, and every game you make gets its own
-picture and title on it.
+NSUI can't make CIAs from Sega CD or PC Engine CD games, but it can for cartridge games, and its banners are 3D. The
+app can use NSUI's banners for your CD games, with each game's own picture and title on them:
 
-- **3D console + TV.** Use NSUI's **PC Engine** banner for PC Engine CD games and its **Genesis** banner for Sega
-  CD games. Your picture goes on the TV's screen (stretched over it, as NSUI does) and your title on the plate.
-- **3D frame with color** (the GBA style), from any game: your picture goes in the frame and your title on the
-  plate. Pick the frame color in NSUI before you export.
+- **Genesis / Mega Drive with a TV**, for Sega CD games.
+- **PC Engine with a TV** or **TurboGrafx-16 with a TV**, for PC Engine CD games, or both: the PC Engine on Japanese
+  3DS systems and the TurboGrafx-16 on the others, the way NSUI's own PC Engine banner does it.
+- **3D frame** (NSUI's GBA-style frame), for either: your picture goes in the frame.
 
-1. In NSUI, set up any game of that console (the title screen and title don't matter) and export its **banner**
-   (`<game>_banner.bin`).
-2. In this app, set **Banner** to *3D banner from NSUI* and choose the banner file. The app remembers it for the
-   console you picked in step 1, so choose the PC Engine one with PC Engine CD selected and the Genesis one with Sega
-   CD selected. Switch **Banner** back any time to use the colored frame.
+Your picture goes on the TV's screen (stretched over it, as NSUI does) or in the frame, and your title and year on
+the plate. Each console's own banner tune plays, as with NSUI.
+
+**Made from your NSUI (the easy way).** NSUI keeps the parts of its banners (the 3D models and the tunes) inside its
+program file, and the app puts the banner together from them the same way NSUI does:
+
+1. Set **Banner** to *3D banner from NSUI*.
+2. Next to **From NSUI**, pick the banner and click **Make**. The first time, choose NSUI's program,
+   `New Super Ultimate Injector for 3DS.exe`, in your NSUI folder. The app remembers where it is (**NSUI…** chooses
+   another), and it remembers the banner for the console selected in step 1: make the Genesis one with Sega CD
+   selected and the PC Engine one with PC Engine CD selected.
 3. Choose the game's **Picture** as usual. Leave **Icon file** empty and the icon is made from your picture, with
    the same silver border NSUI gives its icons.
 
-The 3D models, their colors and movement, the plate's badge and the sound stay NSUI's: only the textures for the
-picture and the plate are rewritten, in the banner's main 3D model. Its other models (every language slot) and its
-sound are copied byte for byte. NSUI leaves the PC Engine banner's plate blank, so there the app draws the whole
-plate. The preview shows the banner's 3D model and plate as a still picture.
+The banners made are kept with the app's settings (`%APPDATA%\CD Injector 3DS\nsui banners`). The app only reads
+NSUI's program file: nothing of NSUI's comes with this app, and nothing is changed in your NSUI folder. On the command
+line, `--nsui "<NSUI folder>\New Super Ultimate Injector for 3DS.exe"` does the same, with `--console` to pick the
+banner (`genesis`, `pc_engine`, `turbografx_16`, `by_region` or `frame`).
+
+**Exported from NSUI.** A banner you export from NSUI works too: in NSUI, set up any game of that console (the title
+screen and title don't matter), export its **banner** (`<game>_banner.bin`) and choose it as **Banner file**. A
+"3D frame with color" banner keeps the frame color you picked in NSUI.
+
+The 3D models, their colors and movement, the plate's badge and the tune stay NSUI's: only the textures for the
+picture and the plate are rewritten. NSUI's PC Engine banner keeps a copy of the plate and the TV's picture in each
+of its 13 language sections, and those copies are what the 3DS shows, so they all get the game's title and picture.
+The preview shows the banner's 3D model and plate as a still picture.
 
 ### More options
 

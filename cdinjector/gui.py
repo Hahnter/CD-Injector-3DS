@@ -13,7 +13,7 @@ from PIL import Image, ImageTk
 
 from . import APP_NAME, VERSION
 from . import banner as bn
-from . import gameinfo, nsui
+from . import download, gameinfo, nsui
 from .builder import BuildError, BuildOptions, build, check, clean_title, is_picture, resolve_cue
 from .disc import SYSTEMS
 
@@ -77,8 +77,10 @@ HELP = [
           "setting (PC Engine CD). It is remembered per game."),
     ("b", "Never share a CIA you made: it contains the game and the BIOS."),
     ("h2", "Privacy and safety"),
-    ("b", "This app never connects to the internet and collects nothing. It reads only the files you choose and "
-          "writes only the CIA and a small settings file (the paths and colors you picked) in your user profile."),
+    ("b", "This app collects nothing, and it only goes online to download a game's picture: when you press Download, "
+          "or for every game if you turn that on in More options. It reads only the files you choose and "
+          "writes only the CIA, a small settings file (the paths and colors you picked) and the pictures it downloads, "
+          "in your user profile."),
     ("b", "Files you choose are checked before use: a damaged or oversized file gives an error message instead of "
           "being used."),
 ]
@@ -103,8 +105,9 @@ ABOUT = [
 PICTURE_HINT = "a title screen or box art"
 
 
-def lookup(disc, system, pictures_dir=None):
-    """{"info": GameInfo, "picture": path or None} for a checked disc (see gameinfo); never fails."""
+def lookup(disc, system, pictures_dir=None, online=False):
+    """{"info": GameInfo, "picture": path or None} for a checked disc (see gameinfo), downloading the picture when
+    there is none on this PC and `online` is set; never fails."""
     try:
         info = gameinfo.identify(disc, system)
     except (OSError, ValueError):
@@ -113,6 +116,11 @@ def lookup(disc, system, pictures_dir=None):
         picture = gameinfo.find_picture(system, [info.name, disc.cue.stem], gameinfo.thumbnail_folders(pictures_dir))
     except OSError:
         picture = None
+    if picture is None and online and info.name:
+        try:
+            picture = download.download_picture(system, info.name)
+        except download.DownloadError:
+            picture = None
     return dict(info=info, picture=picture)
 
 
@@ -157,6 +165,7 @@ class App(tk.Tk):
         self.ready = False
         self.image = None
         self._auto = {}                                    # what was last filled in automatically, field by field
+        self._found = (None, "")                           # (system, Redump name) of the game last recognised
         self._photos = {}
         self._check_job = None
         self._check_seq = 0
@@ -271,6 +280,9 @@ class App(tk.Tk):
         ib.grid(row=2, column=1, sticky="w", padx=8, pady=(6, 2))
         ttk.Button(ib, text="Choose a picture…", command=self.pick_image).pack(side="left")
         ttk.Button(ib, text="Clear", command=self.clear_image).pack(side="left", padx=(4, 0))
+        self.b_download = ttk.Button(ib, text="Download", command=self.download_image)
+        self.b_download.pack(side="left", padx=(4, 0))
+        Tooltip(self.b_download, "Download the game's picture from libretro's thumbnails (needs the internet)")
         self.l_picture = ttk.Label(ib, text=PICTURE_HINT, style="Hint.TLabel")
         self.l_picture.pack(side="left", padx=(8, 0))
 
@@ -329,6 +341,9 @@ class App(tk.Tk):
         self.v_font.trace_add("write", lambda *a: self._remember_font())
         self.v_autofill = tk.BooleanVar(value=self.settings.get("autofill", "on") != "off")
         self.v_pictures = tk.StringVar(value=self.settings.get("pictures_dir", ""))
+        self.v_online = tk.BooleanVar(value=self.settings.get("download_pictures", "off") == "on")
+        self.v_online.trace_add("write", lambda *a: self._remember("download_pictures",
+                                                                   "on" if self.v_online.get() else "off"))
         self.v_autofill.trace_add("write", lambda *a: self._remember("autofill", "on" if self.v_autofill.get() else "off"))
         self.v_pictures.trace_add("write", lambda *a: self._remember("pictures_dir", self.v_pictures.get().strip()))
 
@@ -485,8 +500,8 @@ class App(tk.Tk):
         ttk.Checkbutton(f, text="The title, publisher, year and picture, when the game is recognised",
                         variable=self.v_autofill).grid(row=6, column=1, columnspan=3, sticky="w", padx=8)
         ttk.Label(f, text="Sega CD discs carry their own details; PC Engine CD and Sega CD discs are also looked up in "
-                          "the lists of Redump and MAME that come with the app. Nothing goes online, and anything you "
-                          "type yourself is never replaced.", style="Hint.TLabel", wraplength=560,
+                          "the lists of Redump and MAME that come with the app (this never goes online). Anything you "
+                          "type or choose yourself is never replaced.", style="Hint.TLabel", wraplength=560,
                   justify="left").grid(row=7, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
         ttk.Label(f, text="Pictures folder", style="Step.TLabel").grid(row=8, column=0, sticky="w")
         ttk.Entry(f, textvariable=self.v_pictures, width=52).grid(row=8, column=1, sticky="ew", padx=8)
@@ -496,7 +511,13 @@ class App(tk.Tk):
                           "pictures named after the games. Empty means RetroArch's thumbnails, if RetroArch is on this "
                           "PC.", style="Hint.TLabel", wraplength=560,
                   justify="left").grid(row=9, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
-        ttk.Button(f, text="Close", command=win.destroy).grid(row=10, column=3, sticky="e", pady=(4, 0))
+        ttk.Checkbutton(f, text="Download the picture from libretro's thumbnails when there's none on this PC",
+                        variable=self.v_online).grid(row=10, column=1, columnspan=3, sticky="w", padx=8)
+        ttk.Label(f, text="Only for games the app recognises. This goes online, to the same picture collection "
+                          "RetroArch and NSUI use; each picture is downloaded once and kept on this PC. Off: the app "
+                          "only goes online when you press Download.", style="Hint.TLabel", wraplength=560,
+                  justify="left").grid(row=11, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
+        ttk.Button(f, text="Close", command=win.destroy).grid(row=12, column=3, sticky="e", pady=(4, 0))
         win.bind("<Escape>", lambda e: win.destroy())
         win.grab_set()
         win.focus_set()
@@ -658,10 +679,11 @@ class App(tk.Tk):
         opt = BuildOptions(game=Path(game), bios=Path(self.v_bios.get()) if self.v_bios.get().strip() else None,
                            system=self.system_choice())
         self.l_game.config(text="Checking…", foreground=MUTED)
-        look = (self.v_autofill.get(), self.v_pictures.get().strip() or None)       # read here: Tk isn't thread-safe
+        look = (self.v_autofill.get(), self.v_pictures.get().strip() or None,      # read here: Tk isn't thread-safe
+                self.v_online.get())
         threading.Thread(target=self._run_check, args=(opt, self._check_seq, look), daemon=True).start()
 
-    def _run_check(self, opt, seq, look=(False, None)):
+    def _run_check(self, opt, seq, look=(False, None, False)):
         result = {}
         try:
             cue = resolve_cue(opt.game)
@@ -669,7 +691,7 @@ class App(tk.Tk):
             disc, system, bios_files, notes = check(opt)
             result.update(disc=disc, system=system, notes=notes)
             if look[0]:
-                result.update(lookup(disc, system, look[1]))
+                result.update(lookup(disc, system, look[1], look[2]))
         except BuildError as e:
             result["error"] = str(e)
         except Exception as e:                                   # a check must always answer, or the window waits for ever
@@ -718,6 +740,36 @@ class App(tk.Tk):
             self.l_picture.config(text=f"found automatically: {found[:30] + '…' if len(found) > 31 else found}"
                                   if found else PICTURE_HINT)
         self._auto = new
+        self._found = (r.get("system"), info.name)
+
+    def download_image(self):
+        """Download the recognised game's picture (see download.py), in the background."""
+        system, name = self._found
+        if not name:
+            self.l_status.config(text="Choose a game the app recognises first (step 2), or choose a picture yourself.",
+                                 foreground=BAD)
+            return
+        self.b_download.state(["disabled"])
+        self.l_picture.config(text="downloading…")
+
+        def work():
+            try:
+                self.q.put(("picture", name, download.download_picture(system, name), None))
+            except download.DownloadError as e:
+                self.q.put(("picture", name, None, str(e)))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _show_download(self, name, path, error):
+        self.b_download.state(["!disabled"])
+        if path:
+            self.image = str(path)
+            self._auto["picture"] = self.image
+            self.l_picture.config(text="downloaded: " + (Path(path).stem[:30] + "…" if len(Path(path).stem) > 31
+                                                         else Path(path).stem))
+            self.refresh_preview()
+        else:
+            self.l_picture.config(text=PICTURE_HINT)
+            self.l_status.config(text=error or f"libretro's thumbnails have no picture of {name}.", foreground=BAD)
 
     def _update_export(self):
         missing = self.ready and self.nsui_mode() and not self.v_banner_file.get().strip()
@@ -880,6 +932,8 @@ class App(tk.Tk):
                 if item[0] == "check":
                     if item[1] == self._check_seq:
                         self._show_check(item[2])
+                elif item[0] == "picture":
+                    self._show_download(*item[1:])
                 elif item[0] == "progress":
                     self.pb["value"] = int(item[1] * 1000)
                     self.l_status.config(text=item[2], foreground=MUTED)

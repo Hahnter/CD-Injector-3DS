@@ -61,7 +61,6 @@ VSVersionInfo(
     --add-data ((Join-Path $Repo "resources\cores") + ";resources\cores") `
     --add-data ((Join-Path $Repo "resources\tools\windows") + ";resources\tools\windows") `
     --exclude-module numpy `
-    --exclude-module ssl --exclude-module _ssl --exclude-module socket --exclude-module _socket `
     --distpath $DistPath --workpath (Join-Path $Build "pyinstaller") --specpath $Build `
     cd_injector.py
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }

@@ -8,6 +8,10 @@
   or in a folder of your own (**More options > Pictures folder**). Nothing goes online, and nothing you typed is
   replaced. The command line does the same for whatever you don't give it (`--no-lookup` turns it off, `--pictures`
   names the folder).
+- **Download the picture.** A **Download** button next to the picture fetches the game's title screen (or screenshot,
+  or box art) from libretro's thumbnails, the collection RetroArch and NSUI use. **More options** can do it for every
+  game with no picture on the PC (off by default); the command line has `--download-picture`. This is the only time
+  the app goes online, and each picture is downloaded once and kept with the app's settings.
 - **Remaking a game you made before:** the title filled in may differ from the one you used (it used to come from
   the file name). The title ID and save folder come from the title, so type the old title to update that copy.
 

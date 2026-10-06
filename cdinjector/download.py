@@ -16,7 +16,7 @@ from pathlib import Path
 from PIL import Image
 
 from . import APP_NAME, VERSION
-from .gameinfo import THUMBNAIL_KINDS, THUMBNAIL_SYSTEMS, downloaded_pictures, thumbnail_file_name
+from .gameinfo import THUMBNAIL_KINDS, THUMBNAIL_SYSTEMS, downloaded_pictures, picture_names, thumbnail_file_name
 
 HOST = "https://raw.githubusercontent.com/libretro-thumbnails"
 REPOS = {"pce": "NEC_-_PC_Engine_CD_-_TurboGrafx-CD", "segacd": "Sega_-_Mega-CD_-_Sega_CD"}
@@ -55,29 +55,35 @@ def _fetch(url, opener):
 
 def download_picture(system, name, folder=None, opener=urllib.request.urlopen):
     """A picture for the game called `name` (its Redump name, as gameinfo finds it): the title screen if libretro has
-    one, else a screenshot, else box art. Returns the saved file, or None when libretro has no picture of the game.
-    Raises DownloadError when it can't be downloaded."""
-    if system not in REPOS or not name or name.startswith("."):
+    one, else a screenshot, else box art, each looked for under the names gameinfo.picture_names gives. Returns the
+    saved file, or None when libretro has no picture of the game. Raises DownloadError when it can't be downloaded."""
+    if system not in REPOS or not name:
         return None
-    file_name = thumbnail_file_name(name) + ".png"
+    names = [n for n in picture_names(system, [name]) if not n.startswith(".")]
     folder = Path(folder) if folder else downloaded_pictures()
     for kind in THUMBNAIL_KINDS:
-        dest = folder / THUMBNAIL_SYSTEMS[system] / kind / file_name
-        if dest.is_file():
-            return dest
-        data = _fetch(picture_url(system, kind, name), opener)
-        if data is None:
-            continue
-        if not data.startswith(PNG_MAGIC):
-            raise DownloadError("The download isn't a picture, so it wasn't used.")
-        try:
-            with Image.open(io.BytesIO(data)) as img:
-                img.load()
-        except (OSError, ValueError, SyntaxError, Image.DecompressionBombError) as e:
-            raise DownloadError(f"The downloaded picture can't be read ({e}).")
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        part = dest.with_name(dest.name + ".part")
-        part.write_bytes(data)
-        os.replace(part, dest)
-        return dest
+        kept = [folder / THUMBNAIL_SYSTEMS[system] / kind / (thumbnail_file_name(n) + ".png") for n in names]
+        for dest in kept:
+            if dest.is_file():
+                return dest
+        for n, dest in zip(names, kept):
+            data = _fetch(picture_url(system, kind, n), opener)
+            if data is not None:
+                return _save(data, dest)
     return None
+
+
+def _save(data, dest):
+    """Check a downloaded picture and keep it at `dest`."""
+    if not data.startswith(PNG_MAGIC):
+        raise DownloadError("The download isn't a picture, so it wasn't used.")
+    try:
+        with Image.open(io.BytesIO(data)) as img:
+            img.load()
+    except (OSError, ValueError, SyntaxError, Image.DecompressionBombError) as e:
+        raise DownloadError(f"The downloaded picture can't be read ({e}).")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    part = dest.with_name(dest.name + ".part")
+    part.write_bytes(data)
+    os.replace(part, dest)
+    return dest

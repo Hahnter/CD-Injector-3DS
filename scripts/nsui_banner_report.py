@@ -3,9 +3,9 @@
 
     python scripts/nsui_banner_report.py "<NSUI folder>\\New Super Ultimate Injector for 3DS.exe" [previews folder]
 
-It reads the program file, finds every 3DS banner (CBMD) and every separate 3D model (CGFX) stored in it, checks
-each one, and writes nsui-banners.txt: for each its size, its texture and part names, and what kind it looks like (a
-frame, a console + TV, or another kind). With a previews folder it also saves there, for you to look at, a picture of
+It reads the program file, finds every 3DS banner (CBMD), every separate 3D model (CGFX) and every banner sound
+(CWAV) stored in it, checks each one, and writes nsui-banners.txt: for each its size, the name NSUI keeps it under,
+its texture and part names, and what kind it looks like (a frame, a console + TV, or another kind). With a previews folder it also saves there, for you to look at, a picture of
 each banner and model as the 3DS would draw it (with whatever title its plate holds) and a picture of each of its
 textures, in a folder per banner or model. Nothing is changed or sent anywhere: the report holds only names and
 sizes, and the pictures stay on your PC unless you choose to share them.
@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cdinjector import cgfx, model3d, nsui  # noqa: E402
+from cdinjector import cgfx, model3d, nsui, nsui_program  # noqa: E402
 
 MAX_PROGRAM = 1024 * 1024 * 1024
 
@@ -129,12 +129,21 @@ def describe(path):
     return lines
 
 
+def short_id(blob):
+    return hashlib.sha1(blob).hexdigest()[:12]
+
+
 def main(program, previews=None):
     program = Path(program)
     if program.stat().st_size > MAX_PROGRAM:
         sys.exit(f"{program.name} is too big to be NSUI's program file.")
     data = program.read_bytes()
     out, seen = [f"Banners in {program.name} ({len(data)} bytes)", ""], {}
+    named = sorted(nsui_program.resources(data), key=lambda r: r[1])
+
+    def resource_of(start):
+        hits = [f"'{n}'" + ("" if o == start else f" +{start - o:#x}") for n, o, size in named if o <= start < o + size]
+        return f", in resource {' / '.join(hits)}" if hits else ""
     if previews:
         Path(previews).mkdir(parents=True, exist_ok=True)
     count = 0
@@ -147,7 +156,7 @@ def main(program, previews=None):
                 continue
             count += 1
             seen[digest] = count
-            out.append(f"#{count} at {start:#x}, {end - start} bytes, id {digest}")
+            out.append(f"#{count} at {start:#x}, {end - start} bytes, id {digest}{resource_of(start)}")
             path = Path(t) / f"{count}.bin"
             path.write_bytes(blob)
             try:
@@ -170,7 +179,7 @@ def main(program, previews=None):
             continue
         models += 1
         seen[digest] = f"M{models}"
-        out.append(f"model M{models} at {start:#x}, {end - start} bytes, id {digest}")
+        out.append(f"model M{models} at {start:#x}, {end - start} bytes, id {digest}{resource_of(start)}")
         try:
             out += describe_model(blob)
         except nsui.MODEL_ERRORS as e:
@@ -181,9 +190,26 @@ def main(program, previews=None):
                 save_previews(Path(previews) / f"M{models:02d}", blob, [])
             except nsui.MODEL_ERRORS as e:
                 out.append(f"  no preview: {e}")
-    out.insert(1, f"{count} different banners and {models} separate 3D models found")
+    banner_sounds = {}
+    for start, end in taken:
+        cwav = struct.unpack_from("<I", data, start + 0x84)[0]
+        banner_sounds.setdefault(short_id(data[start + cwav:end]), seen.get(short_id(data[start:end])))
+    sounds = 0
+    for start, end, rate, channels, seconds in nsui_program.sound_spans(data):
+        digest = short_id(data[start:end])
+        if digest in seen:
+            continue
+        sounds += 1
+        seen[digest] = f"S{sounds}"
+        whose = f", the sound of banner #{banner_sounds[digest]}" if digest in banner_sounds else ""
+        out.append(f"sound S{sounds} at {start:#x}, {end - start} bytes, {rate} Hz, {channels} channel(s), "
+                   f"{seconds:.2f} s, id {digest}{whose}{resource_of(start)}")
+    out.append("")
+    out.append(f"{len(named)} named resources:")
+    out += [f"  {n}: {size} bytes at {o:#x}" for n, o, size in named]
+    out.insert(1, f"{count} different banners, {models} separate 3D models and {sounds} sounds found")
     Path("nsui-banners.txt").write_text("\n".join(out) + "\n", encoding="utf-8")
-    print(f"{count} different banners and {models} separate 3D models found; the list is in "
+    print(f"{count} different banners, {models} separate 3D models and {sounds} sounds found; the list is in "
           f"{Path('nsui-banners.txt').resolve()}")
     if previews:
         print(f"pictures of them are in {Path(previews).resolve()}")

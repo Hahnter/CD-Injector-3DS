@@ -53,15 +53,16 @@ def _fetch(url, opener):
     return data
 
 
-def download_picture(system, name, folder=None, opener=urllib.request.urlopen):
+def download_picture(system, name, folder=None, opener=urllib.request.urlopen, kinds=THUMBNAIL_KINDS):
     """A picture for the game called `name` (its Redump name, as gameinfo finds it): the title screen if libretro has
     one, else a screenshot, else box art, each looked for under the names gameinfo.picture_names gives. Returns the
-    saved file, or None when libretro has no picture of the game. Raises DownloadError when it can't be downloaded."""
+    saved file, or None when libretro has no picture of the game. Raises DownloadError when it can't be downloaded.
+    kinds: only these kinds of picture (gameinfo.COVER_KINDS for the box art alone)."""
     if system not in REPOS or not name:
         return None
     names = [n for n in picture_names(system, [name]) if not n.startswith(".")]
     folder = Path(folder) if folder else downloaded_pictures()
-    for kind in THUMBNAIL_KINDS:
+    for kind in kinds:
         kept = [folder / THUMBNAIL_SYSTEMS[system] / kind / (thumbnail_file_name(n) + ".png") for n in names]
         for dest in kept:
             if dest.is_file():

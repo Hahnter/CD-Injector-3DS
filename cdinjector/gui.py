@@ -21,7 +21,8 @@ SETTINGS = Path(os.environ.get("APPDATA", Path.home())) / APP_NAME / "settings.j
 IMAGE_TYPES = [("Images", "*.png *.jpg *.jpeg *.bmp *.gif *.webp"), ("All files", "*.*")]
 OK, BAD, MUTED = "#1b7a2b", "#b3261e", "#666"
 PICTURES = "*.png *.jpg *.jpeg *.bmp *.gif *.webp"
-STYLES = ["Title screen in a colored frame", "3D banner from NSUI"]
+STYLES = ["Frame: your picture in a colored frame", "CD case: the cover and the disc", "3D banner from NSUI"]
+STYLE_KEYS = ("frame", "cdcase", "nsui")                # what each of STYLES is called in the settings
 CW, CH = 320, 160                                   # the banner preview area
 
 BIOS_HINTS = {
@@ -59,8 +60,10 @@ HELP = [
           "up in lists that come with the app), else the title comes from the file name. Change any of them."),
     ("b", "Picture: a title screen or box art. It becomes the picture on the banner and the icon. It's found for you "
           "in RetroArch's thumbnails when they're on this PC, or in your own pictures folder (More options)."),
-    ("b", "Banner: \"Title screen in a colored frame\" makes a banner from your picture in the same layout as "
-          "NSUI's frame banners, and you choose the frame color. \"3D banner from NSUI\" uses NSUI's 3D banners "
+    ("b", "Banner: \"Frame\" puts your picture in a colored frame, in the same layout as NSUI's frame banners, "
+          "and you choose the frame color. \"CD case\" shows the game's cover (its box art, found or downloaded like "
+          "the picture, or chosen next to Cover) in a CD case, with the disc sliding out. Both stand out of the "
+          "screen with the 3D slider up, and need nothing else. \"3D banner from NSUI\" uses NSUI's 3D banners "
           "(New Super Ultimate Injector): a console + TV (the Genesis for Sega CD games; the PC Engine, the "
           "TurboGrafx-16, or both by region for PC Engine CD games) or a 3D frame. Pick one next to From NSUI and "
           "click Make: the first time, choose NSUI's program (New Super Ultimate Injector for 3DS.exe) and the app "
@@ -105,25 +108,30 @@ ABOUT = [
 
 
 PICTURE_HINT = "a title screen or box art"
+COVER_HINT = "box art (or else the picture)"
 
 
-def lookup(disc, system, pictures_dir=None, online=False):
-    """{"info": GameInfo, "picture": path or None} for a checked disc (see gameinfo), downloading the picture when
-    there is none on this PC and `online` is set; never fails."""
+def lookup(disc, system, pictures_dir=None, online=False, cover=False):
+    """{"info": GameInfo, "picture": path or None, "cover": path or None} for a checked disc (see gameinfo),
+    downloading the picture (and, with `cover`, the box art) when there is none on this PC and `online` is set;
+    never fails."""
     try:
         info = gameinfo.identify(disc, system)
     except (OSError, ValueError):
         info = gameinfo.GameInfo()
-    try:
-        picture = gameinfo.find_picture(system, [info.name, disc.cue.stem], gameinfo.thumbnail_folders(pictures_dir))
-    except OSError:
-        picture = None
-    if picture is None and online and info.name:
+    found = {}
+    for key, kinds, wanted in (("picture", gameinfo.THUMBNAIL_KINDS, True), ("cover", gameinfo.COVER_KINDS, cover)):
         try:
-            picture = download.download_picture(system, info.name)
-        except download.DownloadError:
-            picture = None
-    return dict(info=info, picture=picture)
+            found[key] = gameinfo.find_picture(system, [info.name, disc.cue.stem],
+                                               gameinfo.thumbnail_folders(pictures_dir), kinds)
+        except OSError:
+            found[key] = None
+        if found[key] is None and online and wanted and info.name:
+            try:
+                found[key] = download.download_picture(system, info.name, kinds=kinds)
+            except download.DownloadError:
+                found[key] = None
+    return dict(info=info, **found)
 
 
 class Tooltip:
@@ -166,6 +174,7 @@ class App(tk.Tk):
         self.busy = False
         self.ready = False
         self.image = None
+        self.cover = None                                  # the CD case banner's cover (box art)
         self._auto = {}                                    # what was last filled in automatically, field by field
         self._found = (None, "")                           # (system, Redump name) of the game last recognised
         self._photos = {}
@@ -289,7 +298,8 @@ class App(tk.Tk):
         self.l_picture.pack(side="left", padx=(8, 0))
 
         ttk.Label(left, text="Banner").grid(row=3, column=0, sticky="w", pady=(8, 2))
-        self.v_style = tk.StringVar(value=STYLES[1] if self.settings.get("banner_style") == "nsui" else STYLES[0])
+        saved = self.settings.get("banner_style")
+        self.v_style = tk.StringVar(value=STYLES[STYLE_KEYS.index(saved) if saved in STYLE_KEYS else 0])
         cb = ttk.Combobox(left, textvariable=self.v_style, values=STYLES, state="readonly")
         cb.grid(row=3, column=1, sticky="ew", padx=8, pady=(8, 2))
         cb.bind("<<ComboboxSelected>>", lambda e: self._style_changed())
@@ -312,6 +322,19 @@ class App(tk.Tk):
             self.swatches.append((sw, rgb))
         ttk.Button(cf, text="Custom…", command=self.pick_color).pack(side="left", padx=(8, 0))
         ttk.Button(cf, text="Reset", command=lambda: self._set_color(None)).pack(side="left", padx=(4, 0))
+
+        # the CD case's cover (the box art)
+        cv = ttk.Frame(left)
+        cv.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+        self.f_cover = cv
+        ttk.Label(cv, text="Cover").pack(side="left")
+        ttk.Button(cv, text="Choose a picture…", command=self.pick_cover).pack(side="left", padx=(8, 0))
+        ttk.Button(cv, text="Clear", command=self.clear_cover).pack(side="left", padx=(4, 0))
+        self.b_download_cover = ttk.Button(cv, text="Download", command=self.download_cover)
+        self.b_download_cover.pack(side="left", padx=(4, 0))
+        Tooltip(self.b_download_cover, "Download the game's box art from libretro's thumbnails (needs the internet)")
+        self.l_cover = ttk.Label(cv, text=COVER_HINT, style="Hint.TLabel")
+        self.l_cover.pack(side="left", padx=(8, 0))
 
         # a banner and icon exported from NSUI (or your own files)
         nf = ttk.Frame(left)
@@ -629,22 +652,28 @@ class App(tk.Tk):
             self.v_banner_file.set(str(path))
         self.l_status.config(text=f"✓ Made NSUI's banner: {self.v_nsui_console.get()}.", foreground=OK)
 
+    def style_key(self):
+        """The chosen banner: "frame", "cdcase" or "nsui"."""
+        return STYLE_KEYS[STYLES.index(self.v_style.get())] if self.v_style.get() in STYLES else "frame"
+
     def nsui_mode(self):
-        return self.v_style.get() == STYLES[1]
+        return self.style_key() == "nsui"
 
     def _apply_style(self):
-        """Show the controls of the chosen banner: the frame colour, or the NSUI banner and icon files."""
-        if self.nsui_mode():
-            self.f_color.grid_remove()
-            self.f_nsui.grid()
-        else:
-            self.f_nsui.grid_remove()
-            self.f_color.grid()
+        """Show the controls of the chosen banner: the frame colour, the CD case's cover, or the NSUI banner and
+        icon files."""
+        for frame, key in ((self.f_color, "frame"), (self.f_cover, "cdcase"), (self.f_nsui, "nsui")):
+            if self.style_key() == key:
+                frame.grid()
+            else:
+                frame.grid_remove()
 
     def _style_changed(self):
-        self.settings["banner_style"] = "nsui" if self.nsui_mode() else "frame"
+        self.settings["banner_style"] = self.style_key()
         self._save_settings()
         self._apply_style()
+        if self.style_key() == "cdcase" and not self.cover and self.v_game.get().strip():
+            self.schedule_check()                            # look for the game's box art too
         self._update_export()
         self.refresh_preview()
 
@@ -731,6 +760,18 @@ class App(tk.Tk):
         self.l_picture.config(text=PICTURE_HINT)
         self.refresh_preview()
 
+    def pick_cover(self):
+        p = filedialog.askopenfilename(title="The game's box art", filetypes=IMAGE_TYPES)
+        if p:
+            self.cover = p
+            self.l_cover.config(text=COVER_HINT)
+            self.refresh_preview()
+
+    def clear_cover(self):
+        self.cover = None
+        self.l_cover.config(text=COVER_HINT)
+        self.refresh_preview()
+
     def pick_out(self):
         p = filedialog.askdirectory(title="Save the CIA to")
         if p:
@@ -763,10 +804,10 @@ class App(tk.Tk):
                            system=self.system_choice())
         self.l_game.config(text="Checking…", foreground=MUTED)
         look = (self.v_autofill.get(), self.v_pictures.get().strip() or None,      # read here: Tk isn't thread-safe
-                self.v_online.get())
+                self.v_online.get(), self.style_key() == "cdcase")
         threading.Thread(target=self._run_check, args=(opt, self._check_seq, look), daemon=True).start()
 
-    def _run_check(self, opt, seq, look=(False, None, False)):
+    def _run_check(self, opt, seq, look=(False, None, False, False)):
         result = {}
         try:
             cue = resolve_cue(opt.game)
@@ -774,7 +815,7 @@ class App(tk.Tk):
             disc, system, bios_files, notes = check(opt)
             result.update(disc=disc, system=system, notes=notes)
             if look[0]:
-                result.update(lookup(disc, system, look[1], look[2]))
+                result.update(lookup(disc, system, look[1], look[2], look[3]))
         except BuildError as e:
             result["error"] = str(e)
         except Exception as e:                                   # a check must always answer, or the window waits for ever
@@ -813,7 +854,8 @@ class App(tk.Tk):
         empty or still holds what was filled in for the previous game, so nothing typed or chosen is ever replaced."""
         info = info or gameinfo.GameInfo()
         new = dict(title=info.title or (clean_title(r["cue"].stem) if "cue" in r else ""), publisher=info.publisher,
-                   year=info.year, picture=str(r["picture"]) if r.get("picture") else None)
+                   year=info.year, picture=str(r["picture"]) if r.get("picture") else None,
+                   cover=str(r["cover"]) if r.get("cover") else None)
         for key, var in (("title", self.v_title), ("publisher", self.v_pub), ("year", self.v_year)):
             if not var.get().strip() or var.get() == self._auto.get(key):
                 var.set(new[key])
@@ -822,6 +864,11 @@ class App(tk.Tk):
             found = Path(new["picture"]).stem if new["picture"] else ""
             self.l_picture.config(text=f"found automatically: {found[:30] + '…' if len(found) > 31 else found}"
                                   if found else PICTURE_HINT)
+        if not self.cover or self.cover == self._auto.get("cover"):
+            self.cover = new["cover"]
+            found = Path(new["cover"]).stem if new["cover"] else ""
+            self.l_cover.config(text=f"found automatically: {found[:30] + '…' if len(found) > 31 else found}"
+                                if found else COVER_HINT)
         self._auto = new
         self._found = (r.get("system"), info.name)
 
@@ -841,6 +888,35 @@ class App(tk.Tk):
             except download.DownloadError as e:
                 self.q.put(("picture", name, None, str(e)))
         threading.Thread(target=work, daemon=True).start()
+
+    def download_cover(self):
+        """Download the recognised game's box art for the CD case banner, in the background."""
+        system, name = self._found
+        if not name:
+            self.l_status.config(text="Choose a game the app recognises first (step 2), or choose a cover yourself.",
+                                 foreground=BAD)
+            return
+        self.b_download_cover.state(["disabled"])
+        self.l_cover.config(text="downloading…")
+
+        def work():
+            try:
+                self.q.put(("cover", name, download.download_picture(system, name, kinds=gameinfo.COVER_KINDS), None))
+            except download.DownloadError as e:
+                self.q.put(("cover", name, None, str(e)))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _show_cover_download(self, name, path, error):
+        self.b_download_cover.state(["!disabled"])
+        if path:
+            self.cover = str(path)
+            self._auto["cover"] = self.cover
+            stem = Path(path).stem
+            self.l_cover.config(text="downloaded: " + (stem[:30] + "…" if len(stem) > 31 else stem))
+            self.refresh_preview()
+        else:
+            self.l_cover.config(text=COVER_HINT)
+            self.l_status.config(text=error or f"libretro's thumbnails have no box art of {name}.", foreground=BAD)
 
     def _show_download(self, name, path, error):
         self.b_download.state(["!disabled"])
@@ -953,6 +1029,10 @@ class App(tk.Tk):
             else:
                 if banner_file:
                     img, quad = bn.draw_custom_banner(banner_file), bn.CUSTOM_QUAD
+                elif self.style_key() == "cdcase":
+                    img = bn.flatten(bn.cd_case_layers(self.image, self.cover, title, self.v_year.get().strip(),
+                                                       system, self.font_file(), self.v_plate_style.get()))
+                    quad = bn.BANNER_QUAD
                 else:
                     img = bn.draw_vc_banner(self.image, title, self.v_year.get().strip(), system,
                                             bn.parse_color(self.v_color.get()), self.font_file(),
@@ -990,6 +1070,8 @@ class App(tk.Tk):
             icon_file=Path(self.v_icon_file.get()) if self.nsui_mode() and self.v_icon_file.get().strip() else None,
             banner_file=Path(self.v_banner_file.get()) if self.nsui_mode() and self.v_banner_file.get().strip() else None,
             frame_color=bn.parse_color(self.v_color.get()),
+            banner_style="cdcase" if self.style_key() == "cdcase" else "frame",
+            cover=Path(self.cover) if self.style_key() == "cdcase" and self.cover else None,
             sound_file=Path(self.v_sound.get()) if self.v_sound.get().strip() else None,
             plate_font=self.font_file(), plate_style=self.v_plate_style.get())
         self.settings.update(bios=self.v_bios.get(), out=self.v_out.get())
@@ -1018,6 +1100,8 @@ class App(tk.Tk):
                         self._show_check(item[2])
                 elif item[0] == "picture":
                     self._show_download(*item[1:])
+                elif item[0] == "cover":
+                    self._show_cover_download(*item[1:])
                 elif item[0] == "nsui":
                     self._show_nsui_banner(*item[1:])
                 elif item[0] == "progress":

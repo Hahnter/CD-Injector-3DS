@@ -137,6 +137,43 @@ class OfficialPlateTests(unittest.TestCase):
             self.assertLessEqual(right - left, bn.PLATE_TEXT_W)
 
 
+class DesignTests(unittest.TestCase):
+    """The app's own banners: layers at different depths, each on its own part of the screen."""
+
+    def check(self, layers):
+        for img, quad, depth in layers:
+            self.assertEqual(img.size, (quad[2] - quad[0], quad[3] - quad[1]))
+            self.assertTrue(bn.BANNER_QUAD[0] <= quad[0] < quad[2] <= bn.BANNER_QUAD[2], quad)
+            self.assertTrue(bn.BANNER_QUAD[1] <= quad[1] < quad[3] <= bn.BANNER_QUAD[3], quad)
+        self.assertEqual([d for _, _, d in layers], sorted(d for _, _, d in layers))       # back to front
+        self.assertEqual(layers[-1][1:], (bn.PLATE_QUAD, bn.PLATE_DEPTH))                   # the plate in front
+        (mesh,) = model3d.read_meshes(model3d.layered_banner_model(bannertool_model(), layers))
+        self.assertEqual(len(mesh["tris"]), 2 * len(layers))
+
+    def test_the_frame(self):
+        layers = bn.frame_layers(a_picture(), "Castlevania: Rondo of Blood", "1993", "pce")
+        self.check(layers)
+        frame = layers[1][0]                             # the window is cut out of the frame, so the picture shows
+        window = [round(v) - o for v, o in zip(bn.WINDOW_BOX, bn.FRAME_QUAD[:2] * 2)]
+        self.assertEqual(frame.getchannel("A").crop((window[0] + 4, window[1] + 4, window[2] - 4, window[3] - 4))
+                         .getextrema(), (0, 0))
+
+    def test_the_cd_case(self):
+        square, tall = a_picture((300, 300)), a_picture((300, 510))
+        for cover in (square, tall, None):
+            layers = bn.cd_case_layers(a_picture(), cover, "Lunar: The Silver Star", "1993", "segacd")
+            self.check(layers)
+            (_, disc, _), (_, case, _) = layers[0], layers[1]
+            for quad in (disc, case):
+                self.assertTrue(bn.CASE_AREA[0] <= quad[0] and quad[2] <= bn.CASE_AREA[2], quad)
+            self.assertLess(case[0], disc[0])                  # the disc slides out to the right
+            self.assertGreater(disc[2], case[2])
+            width, height = case[2] - case[0], case[3] - case[1]
+            self.assertAlmostEqual(width / height, 0.62 if cover is tall else 1.0 if cover is square else 1.14,
+                                   delta=0.02)
+        self.assertEqual(bn.draw_vc_banner(None, "T", "", "pce").size, (256, 192))
+
+
 class IconTests(unittest.TestCase):
     def test_the_icon_has_nsuis_silver_border(self):
         for picture in (None, a_picture()):
@@ -179,6 +216,30 @@ class FullColourModelTests(unittest.TestCase):
         self.assertEqual((t["w"], t["h"]), (256, 128))
         xs = {round(v[0], 4) for m in model3d.read_meshes(model) for tri in m["tris"] for v in tri}
         self.assertEqual(xs, {-13.0, 13.0})
+
+    def test_layers_at_different_depths_cover_their_part_of_the_screen(self):
+        """Each picture of a layered banner lands on its own rectangle of the top screen, whatever its depth, and
+        reads back from the shared texture as it was given."""
+        pictures = [a_picture((134, 98)).convert("RGBA"), a_picture((104, 67)).convert("RGBA"),
+                    bn.draw_plate("Lunar", "1992").reduce(4).resize((216, 54))]
+        quads = [(133, 48, 267, 146), (148, 63, 252, 130), (92, 164, 308, 218)]
+        model = model3d.layered_banner_model(bannertool_model(), list(zip(pictures, quads, (1.8, 1.9, 8.0))))
+        (mesh,) = model3d.read_meshes(model)
+        self.assertEqual(len(mesh["tris"]), 6)
+        texture = cgfx.read_texture(model, cgfx.textures(model)["COMMON1"])
+        for k, (picture, quad) in enumerate(zip(pictures, quads)):
+            corners = [v for tri in mesh["tris"][2 * k:2 * k + 2] for v in tri]
+            scale = model3d.depth_scale(corners[0][2])
+            xs = [200 + (v[0] - model3d.CAM[0]) * model3d.PIXELS_PER_UNIT / scale for v in corners]
+            ys = [120 - (v[1] - model3d.CAM[1]) * model3d.PIXELS_PER_UNIT / scale for v in corners]
+            for got, want in zip((min(xs), min(ys), max(xs), max(ys)), quad):
+                self.assertAlmostEqual(got, want, places=3)
+            us, vs = [v[3] for v in corners], [v[4] for v in corners]
+            box = (round(min(us) * 256), round((1 - max(vs)) * texture.height), round(max(us) * 256),
+                   round((1 - min(vs)) * texture.height))
+            self.assertIsNone(ImageChops.difference(texture.crop(box), picture.convert("RGBA")).getbbox())
+        with self.assertRaises(cgfx.CGFXError):
+            model3d.layered_banner_model(bannertool_model(), [(Image.new("RGBA", (256, 64)), quads[2], 8.0)])
 
     def test_unusable_sizes_are_refused(self):
         with self.assertRaises(cgfx.CGFXError):

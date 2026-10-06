@@ -248,6 +248,109 @@ def flat_banner_model(base, img, quad):
     return bytes(out)
 
 
+def _buffers(base, model):
+    """(vertex attribute, index stream, shape) offsets of bannertool's model: one shape with one interleaved vertex
+    buffer and one stream of 8-bit indices."""
+    if u32(base, model + 180) != 1 or u32(base, model + 196) != 1:
+        raise CGFXError("the banner model isn't laid out like bannertool's")
+    shape = rel(base, rel(base, model + 200))
+    attrs = [rel(base, rel(base, shape + 60) + 4 * j) for j in range(u32(base, shape + 56))]
+    attrs = [a for a in attrs if u32(base, a) == 0x40000002]
+    if u32(base, shape + 44) != 1 or len(attrs) != 1:
+        raise CGFXError("the banner model isn't laid out like bannertool's")
+    ps = rel(base, rel(base, shape + 48))
+    if u32(base, ps + 12) != 1:
+        raise CGFXError("the banner model isn't laid out like bannertool's")
+    pr = rel(base, rel(base, ps + 16))
+    if u32(base, pr) != 1:
+        raise CGFXError("the banner model isn't laid out like bannertool's")
+    ist = rel(base, rel(base, pr + 4))
+    if u32(base, ist) != 0x1401 or u32(base, attrs[0] + 36) != 20:
+        raise CGFXError("the banner model isn't laid out like bannertool's")
+    return attrs[0], ist, shape
+
+
+def depth_scale(z):
+    """How much smaller a thing at depth z (towards the camera) must be in the model to cover the same part of the
+    screen as at depth 0."""
+    return (CAM[2] - z) / CAM[2]
+
+
+def layered_banner_model(base, layers):
+    """bannertool's banner model (see flat_banner_model) turned into several pictures at different depths, so the
+    banner stands out of the screen with the 3D slider up, as NSUI's 3D banners do. `layers` is [(picture, quad,
+    depth)], back to front: each picture covers quad = (left, top, right, bottom) of the top screen, in pixels, at
+    its depth (in model units towards the camera; NSUI's frame sits at about 1.8 and its plate at 8). The pictures
+    share one full-colour RGBA8 texture, each with a clear border so they don't bleed into each other."""
+    texs = list(cgfx.textures(base).values())
+    if len(texs) != 1 or texs[0]["data"] + texs[0]["length"] != len(base) or not 0 < len(layers) <= 40:
+        raise CGFXError("the banner model isn't laid out like bannertool's")
+    t = texs[0]
+    model = _model(base)
+    if model is None:
+        raise CGFXError("the banner model isn't laid out like bannertool's")
+    attr, ist, shape = _buffers(base, model)
+    imag = cgfx.u16(base, 6) + u32(base, 0x18)
+    if bytes(base[imag:imag + 4]) != b"IMAG":
+        raise CGFXError("the banner model isn't laid out like bannertool's")
+
+    # the pictures, packed in rows into one texture 256 wide, 2 clear texels around each
+    W, gap, places, x, y, row = 256, 2, [], 0, 0, 0
+    for img, _quad, _z in layers:
+        w, h = img.size
+        if w + 2 * gap > W:
+            raise CGFXError(f"a {w} x {h} picture is too wide for the banner")
+        if x + w + 2 * gap > W:
+            x, y, row = 0, y + row, 0
+        places.append((x + gap, y + gap))
+        x, row = x + w + 2 * gap, max(row, h + 2 * gap)
+    H = 8
+    while H < y + row:
+        H *= 2
+    if H > W:
+        raise CGFXError("the banner's pictures don't fit in one texture")
+    tex = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    for (img, _quad, _z), (px, py) in zip(layers, places):
+        tex.paste(img.convert("RGBA"), (px, py))
+
+    indices, vertices, xs, ys, zs = bytearray(), bytearray(), [], [], []
+    for k, ((img, quad, z), (px, py)) in enumerate(zip(layers, places)):
+        f = depth_scale(z) / PIXELS_PER_UNIT
+        left, right = CAM[0] + (quad[0] - SCREEN[0] / 2) * f, CAM[0] + (quad[2] - SCREEN[0] / 2) * f
+        top, bottom = CAM[1] + (SCREEN[1] / 2 - quad[1]) * f, CAM[1] + (SCREEN[1] / 2 - quad[3]) * f
+        u0, u1 = px / W, (px + img.width) / W
+        v_top, v_bottom = 1 - py / H, 1 - (py + img.height) / H
+        for vx, vy, u, v in ((left, bottom, u0, v_bottom), (right, bottom, u1, v_bottom),
+                             (left, top, u0, v_top), (right, top, u1, v_top)):
+            vertices += struct.pack("<5f", vx, vy, z, u, v)
+        indices += bytes(4 * k + i for i in (0, 1, 2, 1, 3, 2))
+        xs += [left, right]
+        ys += [top, bottom]
+        zs.append(z)
+
+    out = bytearray(base[:imag + 8])
+    index_at = len(out)
+    out += indices + bytes(-len(indices) % 8)
+    vertex_at = len(out)
+    out += vertices
+    out += bytes(-len(out) % 128)
+    texture_at = len(out)
+    out += cgfx.rgba8_bytes(tex)
+
+    image = rel(base, t["txob"] + 0x38)
+    for off, value in ((t["txob"] + 0x18, H), (t["txob"] + 0x1C, W), (t["txob"] + 0x24, cgfx.GL_UNSIGNED_BYTE),
+                       (t["txob"] + 0x28, 1), (t["txob"] + 0x34, cgfx.PICA_RGBA8), (image, H), (image + 4, W),
+                       (image + 8, W * H * 4), (image + 0x14, 32), (image + 0xC, texture_at - (image + 0xC)),
+                       (ist + 8, len(indices)), (ist + 12, index_at - (ist + 12)),
+                       (attr + 20, len(vertices)), (attr + 24, vertex_at - (attr + 24)),
+                       (12, len(out)), (imag + 4, len(out) - imag)):
+        struct.pack_into("<I", out, off, value)
+    obb = rel(base, shape + 0x1C)                       # the shape's bounding box: centre, orientation, size
+    struct.pack_into("<3f", out, obb + 4, (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2, (min(zs) + max(zs)) / 2)
+    struct.pack_into("<3f", out, obb + 0x34, max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs))
+    return bytes(out)
+
+
 # ---------------------------------------------------------------------------------------------- drawing
 def _affine(dst, src):
     """(a, b, c, d, e, f) with u = a x + b y + c and v = d x + e y + f for the three point pairs."""

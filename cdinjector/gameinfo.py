@@ -22,6 +22,7 @@ from .thumbnail_names import NAMES as THUMBNAIL_NAMES
 
 THUMBNAIL_SYSTEMS = {"pce": "NEC - PC Engine CD - TurboGrafx-CD", "segacd": "Sega - Mega-CD - Sega CD"}
 THUMBNAIL_KINDS = ("Named_Titles", "Named_Snaps", "Named_Boxarts")      # title screen first, box art last
+COVER_KINDS = ("Named_Boxarts",)                                         # the cover, for the CD case banner
 PICTURE_TYPES = (".png", ".jpg", ".jpeg")
 # notes after the region in a Redump name that a game's picture is usually kept without: its languages
 # "(En,Fr,De)", a revision "(Rev 2)", "(Alt)", "(Rerelease)", "(Beta)" and so on
@@ -207,15 +208,16 @@ def picture_names(system, names):
     return out
 
 
-def find_picture(system, names, folders):
-    """The first picture for any of `names` (a title screen if there is one, then a screenshot, then box art) in
-    the thumbnail folders, laid out as RetroArch does (<folder>/<system>/Named_Titles/<name>.png) or flat."""
+def find_picture(system, names, folders, kinds=THUMBNAIL_KINDS):
+    """The first picture for any of `names` (a title screen if there is one, then a screenshot, then box art; or
+    only the kinds given, say COVER_KINDS) in the thumbnail folders, laid out as RetroArch does
+    (<folder>/<system>/Named_Titles/<name>.png) or, for any kind, flat."""
     names = [thumbnail_file_name(n) for n in picture_names(system, names)]
     sub = THUMBNAIL_SYSTEMS.get(system, "")
     for folder in folders:
         folder = Path(folder)
-        for place in [folder / sub / kind for kind in THUMBNAIL_KINDS] + [folder / kind for kind in THUMBNAIL_KINDS] \
-                + [folder]:
+        for place in [folder / sub / kind for kind in kinds] + [folder / kind for kind in kinds] \
+                + ([folder] if tuple(kinds) == THUMBNAIL_KINDS else []):
             for n in names:
                 for ext in PICTURE_TYPES:
                     p = place / (n + ext)

@@ -23,6 +23,7 @@ def _build(a):
                        system=a.system, out_dir=a.out, image=a.image, icon_fit=a.icon_fit,
                        icon_file=a.icon_file, banner_file=a.banner_file, frame_color=color,
                        sound_file=a.sound, plate_font=a.plate_font, plate_style=a.plate_style,
+                       banner_style=a.banner_style, cover=a.cover,
                        lookup=not a.no_lookup, pictures_dir=a.pictures,
                        download_picture=a.download_picture, nsui_program=a.nsui, nsui_console=a.console)
     last = [-1]
@@ -79,6 +80,11 @@ def main(argv=None):
     b.add_argument("--frame-color", default="", help="colour of the banner's frame, #rrggbb (default: the system's own)")
     b.add_argument("--icon-file", type=Path, help="use a ready-made icon (.icn / NSUI icon .bin), or a picture")
     b.add_argument("--banner-file", type=Path, help="use a ready-made banner (.bnr / NSUI banner .bin), or a picture")
+    b.add_argument("--banner-style", choices=bn.BANNER_STYLES, default="frame",
+                   help="the app's own banner: frame (the title screen in a coloured frame, the default) or cdcase "
+                        "(the game's cover in a CD case, with the disc)")
+    b.add_argument("--cover", type=Path, help="the game's box art, for --banner-style cdcase (default: found like "
+                                              "the picture; without one the picture is used)")
     b.add_argument("--sound", type=Path, help=".wav or .bcwav banner sound")
     b.add_argument("--plate-font", type=Path, help="font file (.ttf) for the title plate's text")
     b.add_argument("--plate-style", choices=bn.PLATE_STYLES, default="nsui",

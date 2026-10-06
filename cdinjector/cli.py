@@ -21,7 +21,8 @@ def _build(a):
     opt = BuildOptions(game=a.game, bios=a.bios, title=a.title, publisher=a.publisher, year=a.year,
                        system=a.system, out_dir=a.out, image=a.image, icon_fit=a.icon_fit,
                        icon_file=a.icon_file, banner_file=a.banner_file, frame_color=color,
-                       sound_file=a.sound, plate_font=a.plate_font, lookup=not a.no_lookup, pictures_dir=a.pictures)
+                       sound_file=a.sound, plate_font=a.plate_font, lookup=not a.no_lookup, pictures_dir=a.pictures,
+                       download_picture=a.download_picture)
     last = [-1]
 
     def progress(frac, msg):
@@ -45,6 +46,8 @@ def _build(a):
         print(f"found   {opt.info['recognised']} (title, publisher and year filled in where you gave none)")
     if opt.info.get("picture"):
         print(f"picture {opt.info['picture']}")
+    elif opt.info.get("picture_note"):
+        print(f"picture none: {opt.info['picture_note']}")
     print(f"banner  {opt.info['banner_kind']}")
     for n in opt.info["notes"]:
         print(f"BIOS    {n}")
@@ -77,6 +80,8 @@ def main(argv=None):
     b.add_argument("--sound", type=Path, help=".wav or .bcwav banner sound")
     b.add_argument("--plate-font", type=Path, help="font file (.ttf) for the title plate's text")
     b.add_argument("--pictures", type=Path, help="folder to find the game's picture in (default: RetroArch's thumbnails)")
+    b.add_argument("--download-picture", action="store_true",
+                   help="if no picture is found on this PC, download one from libretro's thumbnails (goes online)")
     b.add_argument("--no-lookup", action="store_true",
                    help="don't fill in the title, publisher, year and picture from what the disc is recognised as")
     b.set_defaults(run=_build)

@@ -16,6 +16,7 @@ import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import APP_NAME
 from .gamelist import DISCS
 
 THUMBNAIL_SYSTEMS = {"pce": "NEC - PC Engine CD - TurboGrafx-CD", "segacd": "Sega - Mega-CD - Sega CD"}
@@ -145,10 +146,17 @@ def identify(disc, system):
     return GameInfo()
 
 
+def downloaded_pictures():
+    """Where pictures downloaded from libretro's thumbnails are kept (see download.py): next to the app's settings,
+    laid out like RetroArch's thumbnails."""
+    return Path(os.environ.get("APPDATA", Path.home())) / APP_NAME / "pictures"
+
+
 def thumbnail_folders(chosen=None):
-    """RetroArch thumbnail folders on this PC (the chosen folder first), the ones that exist."""
+    """Folders to look for pictures in, the ones that exist: the chosen folder, pictures downloaded before, and
+    RetroArch's thumbnails on this PC."""
     home = Path.home()
-    places = [Path(chosen)] if chosen else []
+    places = ([Path(chosen)] if chosen else []) + [downloaded_pictures()]
     appdata = os.environ.get("APPDATA")
     if appdata:
         places.append(Path(appdata) / "RetroArch" / "thumbnails")

@@ -40,6 +40,7 @@ class BuildOptions:
     plate_font: Path = None           # optional font file for the title plate's text
     lookup: bool = False              # fill in an empty title, publisher, year and picture when the disc is recognised
     pictures_dir: Path = None         # where to look for the picture (None: RetroArch's thumbnails, if found)
+    download_picture: bool = False    # with lookup: download the picture from libretro's thumbnails if none is found
     info: dict = field(default_factory=dict)
 
 
@@ -237,6 +238,12 @@ def fill_in(opt: BuildOptions, disc, system):
                                               gameinfo.thumbnail_folders(opt.pictures_dir))
         except OSError:
             opt.image = None
+        if not opt.image and opt.download_picture and found.name:
+            from . import download                            # the only part of the app that goes online
+            try:
+                opt.image = download.download_picture(system, found.name)
+            except download.DownloadError as e:
+                opt.info["picture_note"] = str(e)
         opt.info["picture"] = opt.image
 
 

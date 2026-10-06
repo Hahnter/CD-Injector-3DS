@@ -12,7 +12,7 @@ from pathlib import Path
 from PIL import Image
 
 from . import banner as bn
-from . import gameinfo, nsui
+from . import gameinfo, nsui, nsui_program
 from .bios import BiosError, find_bios
 from .disc import CUE_FILE, SYSTEMS, DiscError, read_cue
 from .resources import core_dir, run_tool, tool
@@ -41,6 +41,8 @@ class BuildOptions:
     lookup: bool = False              # fill in an empty title, publisher, year and picture when the disc is recognised
     pictures_dir: Path = None         # where to look for the picture (None: RetroArch's thumbnails, if found)
     download_picture: bool = False    # with lookup: download the picture from libretro's thumbnails if none is found
+    nsui_program: Path = None         # NSUI's program file: the banner is made from its parts (see nsui_program.py)
+    nsui_console: str = ""            # which of NSUI's banners (a key of nsui_program.CONSOLES); "" = the usual one
     info: dict = field(default_factory=dict)
 
 
@@ -219,6 +221,12 @@ def preflight(opt: BuildOptions):
             raise BuildError(str(e))
     if opt.plate_font and not Path(opt.plate_font).is_file():
         raise BuildError("The title plate font was not found:" + chr(10) + str(opt.plate_font))
+    if opt.nsui_program and not opt.banner_file:
+        if not Path(opt.nsui_program).is_file():
+            raise BuildError("NSUI's program file was not found:" + chr(10) + str(opt.nsui_program))
+        if opt.nsui_console and opt.nsui_console not in nsui_program.CONSOLES:
+            raise BuildError(f"NSUI has no banner called {opt.nsui_console!r}. Choose one of: "
+                             + ", ".join(nsui_program.CONSOLES) + ".")
 
 
 def fill_in(opt: BuildOptions, disc, system):
@@ -322,8 +330,18 @@ def build(opt: BuildOptions, progress=lambda frac, msg: None) -> Path:
             except PICTURE_ERRORS as e:
                 raise BuildError(f"Couldn't make the icon from the picture: {e}")
         year = opt.year.strip()
-        if opt.banner_file and not is_picture(opt.banner_file):
-            banner = _read_ready_made(opt.banner_file, b"CBMD", "banner")
+        banner_file = opt.banner_file
+        if opt.nsui_program and not banner_file:                 # NSUI's banner for this console, from its parts
+            console = opt.nsui_console or nsui_program.DEFAULT_CONSOLE[system]
+            try:
+                banner_file = nsui_program.build_banner(opt.nsui_program, console, system, tmp / "nsui_template.bin",
+                                                        tmp / "nsui_parts")
+            except nsui.NSUIError as e:
+                raise BuildError(str(e))
+            except RuntimeError as e:
+                raise BuildError(f"Couldn't make NSUI's banner: {e}")
+        if banner_file and not is_picture(banner_file):
+            banner = _read_ready_made(banner_file, b"CBMD", "banner")
             try:                                                 # this game's title (and picture) go on an NSUI banner
                 banner, note = nsui.prepare(banner, title, year, tmp, opt.plate_font, opt.image)
                 opt.info["banner_kind"] = "NSUI banner" + (f" ({note})" if note else "")
@@ -340,8 +358,8 @@ def build(opt: BuildOptions, progress=lambda frac, msg: None) -> Path:
         else:
             banner = tmp / "banner.bnr"
             try:
-                if opt.banner_file:                              # a picture used as the whole banner
-                    opt.info["banner"] = bn.make_banner(opt.banner_file, title, year, system, opt.sound_file, banner,
+                if banner_file:                                  # a picture used as the whole banner
+                    opt.info["banner"] = bn.make_banner(banner_file, title, year, system, opt.sound_file, banner,
                                                         tmp, style="custom")
                     opt.info["banner_kind"] = "your banner picture"
                 else:

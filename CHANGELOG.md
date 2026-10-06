@@ -12,6 +12,11 @@
   or box art) from libretro's thumbnails, the collection RetroArch and NSUI use. **More options** can do it for every
   game with no picture on the PC (off by default); the command line has `--download-picture`. This is the only time
   the app goes online, and each picture is downloaded once and kept with the app's settings.
+- **NSUI's banners straight from NSUI.** Point the app at your copy of NSUI once (**From NSUI > Make**, or `--nsui`
+  on the command line) and it makes NSUI's 3D banners from the parts inside NSUI's program, the way NSUI does: the
+  Genesis for Sega CD games; the PC Engine, the TurboGrafx-16, or both by region (PC Engine on Japanese 3DS systems)
+  for PC Engine CD games; or NSUI's 3D frame. Each plays its console's own tune. No more exporting a banner from
+  NSUI first, and nothing of NSUI's comes with the app.
 - **Fixed: NSUI's PC Engine banner kept its old title plate on the 3DS.** Each of its language sections holds its own
   copy of the plate and of the TV's picture, and those copies are what the 3DS shows. The app put the game's title
   and picture only in the main section, so the preview looked right but the 3DS showed NSUI's own plate. Now every

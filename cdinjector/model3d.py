@@ -32,11 +32,12 @@ def _f(d, o, n):
 
 
 def _model(d):
+    """Where the CGFX's first 3D model is, or None when it has none (a language model can hold only textures)."""
     data = cgfx.u16(d, 6)
+    if u32(d, data + 8) == 0:
+        return None
     models = _dict(d, rel(d, data + 12))
-    if not models:
-        raise CGFXError("the banner has no 3D model")
-    return models[0][1]
+    return models[0][1] if models else None
 
 
 def _compose(a, b):
@@ -109,8 +110,10 @@ def _vertex_arrays(d, shape):
 
 def read_meshes(d):
     """[{node, billboard, tris}]: tris are ((x, y, z, u, v) * 3) in model space, or an empty list if the file
-    isn't laid out like an NSUI banner."""
+    isn't laid out like an NSUI banner or has no 3D model, only textures."""
     model = _model(d)
+    if model is None:
+        return []
     bones = _bones(d, model)
     texnames = set(cgfx.textures(d))
     meshes = []
@@ -228,7 +231,7 @@ def flat_banner_model(base, img, quad):
     struct.pack_into("<I", out, imag + 4, len(out) - imag)
 
     model = _model(base)
-    if u32(base, model + 180) != 1:
+    if model is None or u32(base, model + 180) != 1:
         raise CGFXError("the banner model isn't laid out like bannertool's")
     arrays = list(_vertex_arrays(base, rel(base, rel(base, model + 200))))
     if len(arrays) != 1 or arrays[0][1] != 4 or 4 not in arrays[0][3]:

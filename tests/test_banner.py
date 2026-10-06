@@ -155,6 +155,35 @@ class FullColourModelTests(unittest.TestCase):
         cwav = struct.unpack_from("<I", out, 0x84)[0]
         self.assertEqual((cwav % 32, out[cwav:]), (0x88 % 32, sound))
 
+    def test_replacing_a_language_model(self):
+        """Any model of a banner can be replaced: the others and the sound keep their bytes and their alignment."""
+        blocks = []
+        for model in (bannertool_model(), bannertool_model()[:-64] + bytes(64), bannertool_model()):
+            comp = cgfx.lz11_compress(model)
+            blocks.append(comp + bytes(-len(comp) % 32))
+        sound = b"CWAV" + bytes(60)
+        offs = [0x88]
+        for b in blocks:
+            offs.append(offs[-1] + len(b))
+        words = [0x444D4243, 0, offs[0], offs[1], offs[2]] + [0] * 28 + [offs[3]]
+        data = struct.pack("<34I", *words) + b"".join(blocks) + sound
+        new_model = model3d.flat_banner_model(bannertool_model(), a_picture((256, 128)), bn.CUSTOM_QUAD)
+        out = cgfx.cbmd_replace(data, {offs[1]: new_model})
+        w = struct.unpack_from("<34I", out, 0)
+        self.assertEqual((w[2], w[3] % 32, w[4] % 32, w[33] % 32), (offs[0], offs[1] % 32, offs[2] % 32, offs[3] % 32))
+        self.assertEqual(out[w[2]:w[3]], blocks[0])
+        self.assertEqual(cgfx.lz11_decompress(out[w[3]:w[4]]), new_model)
+        self.assertEqual((out[w[4]:w[33]], out[w[33]:]), (blocks[2], sound))
+        with self.assertRaises(cgfx.CGFXError):
+            cgfx.cbmd_replace(data, {offs[1] + 4: new_model})
+
+    def test_four_bit_textures(self):
+        """L4 and A4 hold two texels a byte, the first in the low half."""
+        for fmt, texel in ((cgfx.PICA_L4, lambda v: (v * 17, 255)), (cgfx.PICA_A4, lambda v: (255, v * 17))):
+            img = cgfx.read_texture(bytes([0xF3]) * 32, dict(w=8, h=8, data=0, fmt=fmt, name="t"))
+            self.assertEqual(sorted(img.getcolors()), sorted([(32, texel(3)), (32, texel(15))]))
+            self.assertEqual((img.getpixel((0, 0)), img.getpixel((1, 0))), (texel(3), texel(15)))
+
     def test_rgba8_pictures_read_back_exactly(self):
         model = bytearray(model3d.flat_banner_model(bannertool_model(), Image.new("RGBA", (256, 128)), bn.CUSTOM_QUAD))
         (t,) = cgfx.textures(bytes(model)).values()
@@ -180,8 +209,8 @@ class ScreenTests(unittest.TestCase):
 @unittest.skipUnless(BANNERS, "needs an NSUI banner file (set CDI_TEST_BANNERS)")
 class NSUITemplateTests(unittest.TestCase):
     def test_a_banner_takes_this_games_picture_and_title(self):
-        """Frame and console + TV banners alike: only the plate and the picture (frame or TV screen) change, and
-        the language models and sound keep their bytes."""
+        """Frame and console + TV banners alike: only the plate and the picture (frame or TV screen) change, in the
+        main model and in every language model that has its own copy of them, and the sound keeps its bytes."""
         with tempfile.TemporaryDirectory() as t:
             for path in BANNERS:
                 b = nsui.Banner(path)
@@ -190,12 +219,20 @@ class NSUITemplateTests(unittest.TestCase):
                 self.assertTrue(where, f"{path.name}: no frame or TV screen found for the picture")
                 self.assertEqual(note, "your picture and title added", path.name)
                 new = nsui.Banner(out).validate()
-                self.assertEqual(new.data[new.common_end:], b.data[b.common_end:])
-                texs = cgfx.textures(bytes(b.common))
-                changed = [i for i, (x, y) in enumerate(zip(b.common, new.common)) if x != y]
-                inside = [i for i in changed if any(v["data"] <= i < v["data"] + v["length"]
-                                                    for n, v in texs.items() if n in (b.plate, where))]
-                self.assertEqual(len(changed), len(inside), path.name)
+                self.assertEqual(new.data[new.cwav_off:], b.data[b.cwav_off:])
+                old_models = [bytes(b.common)] + [m for _, m in b.language_blocks()]
+                new_models = [bytes(new.common)] + [m for _, m in new.language_blocks()]
+                self.assertEqual(len(old_models), len(new_models), path.name)
+                for i, (old, now) in enumerate(zip(old_models, new_models)):
+                    texs = cgfx.textures(old)
+                    self.assertEqual(len(old), len(now), path.name)
+                    changed = [k for k, (x, y) in enumerate(zip(old, now)) if x != y]
+                    inside = [k for k in changed if any(v["data"] <= k < v["data"] + v["length"]
+                                                        for n, v in texs.items() if n in (b.plate, where))]
+                    self.assertEqual(len(changed), len(inside), f"{path.name}, model {i}")
+                    if b.plate in texs:                              # what the 3DS shows is this game's plate
+                        self.assertEqual(cgfx.read_texture(now, cgfx.textures(now)[b.plate]).tobytes(),
+                                         new.texture(b.plate).tobytes(), f"{path.name}, model {i}")
                 if not b.plate_blank():                                          # NSUI's badge is kept
                     self.assertEqual(new.texture(b.plate).crop((0, 0, 92, 64)).tobytes(),
                                      b.texture(b.plate).crop((0, 0, 92, 64)).tobytes(), path.name)

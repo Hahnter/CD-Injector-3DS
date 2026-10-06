@@ -12,13 +12,15 @@ Virtual Console plate and the game's picture where the banner shows one. Two kin
   NSUI does. In the Genesis banner the screen is a rectangle of its own; in the PC Engine one it is part of the TV's
   front, ringed by the TV's own colour. NSUI leaves the PC Engine banner's plate blank, so the whole plate is drawn.
 
-The 3D models, their colours and movement, the plate's badge and the sound stay NSUI's: only the main 3D model's
-block of the file is rewritten, and only those textures in it. Every language model and the sound keep their bytes.
+The 3D models, their colours and movement, the plate's badge and the sound stay NSUI's: only the plate's and the
+picture's textures are rewritten, and the sound keeps its bytes.
 
 A 3DS banner (CBMD) is a header, a main 3D model (LZ11-compressed CGFX), up to 30 language-specific models, and a
-sound. The main model and the language model of the current system language are both drawn by the Home Menu. In
-NSUI's PC Engine banner the main model holds the TV and the plate and the language models hold the console; its
-frame banners have only the main model.
+sound. The Home Menu draws the main model and the language model of the system's language, and a texture in the
+language model takes the place of the main model's texture of the same name. In NSUI's PC Engine banner the main
+model holds the TV and the plate and each language model holds the console, with its own copy of the plate and the
+TV's texture: those copies are what the 3DS shows, so they get the title and picture too. Its frame banners and its
+Genesis banner have only the main model.
 """
 
 import struct
@@ -186,26 +188,31 @@ class Banner:
     def validate(self):
         """Check every 3D model in the banner (the main one and each language one) decompresses to a real CGFX.
         Raises DamagedBannerError otherwise."""
-        ends = sorted(self.lang_offs + ([self.cwav_off] if self.cwav_off else []) + [len(self.data)])
+        self.language_blocks()
+        return self
+
+    def language_blocks(self):
+        """[(offset in the file, decompressed CGFX)] for each language-specific model. Raises DamagedBannerError
+        when one can't be decompressed."""
+        out = []
         for start in self.lang_offs:
-            end = min(e for e in ends if e > start)
+            later = sorted(o for o in self.lang_offs + [self.cwav_off] if o > start)
             try:
-                block = cgfx.lz11_decompress(self.data[start:end])
+                block = cgfx.lz11_decompress(self.data[start:later[0] if later else len(self.data)])
             except ValueError as e:
                 raise DamagedBannerError(f"{self.path.name} is damaged: {e}.")
             if block[:4] != b"CGFX":
                 raise DamagedBannerError(f"{self.path.name} has a language model that isn't valid.")
-        return self
+            out.append((start, block))
+        return out
 
     def language_model(self):
         """The first language-specific model, decompressed, or None."""
         if not self.lang_offs:
             return None
-        start = self.lang_offs[0]
-        later = sorted(o for o in self.lang_offs + [self.cwav_off] if o > start)
         try:
-            return cgfx.lz11_decompress(self.data[start:later[0] if later else len(self.data)])
-        except ValueError:
+            return self.language_blocks()[0][1]
+        except NSUIError:
             return None
 
     def texture(self, name):
@@ -287,25 +294,54 @@ def screen_picture(old, box, picture):
     return out
 
 
+def _write_textures(cg, new):
+    """Write the pictures in `new` ({texture name: picture}) into the CGFX `cg` (a bytearray), each into its texture
+    of that name and size. Returns how many were written."""
+    texs = cgfx.textures(bytes(cg))
+    written = 0
+    for name, img in new.items():
+        t = texs.get(name)
+        if t is None or (t["w"], t["h"]) != img.size:
+            continue
+        if t["fmt"] == cgfx.PICA_RGBA8:
+            cgfx.write_rgba8(cg, t, img)
+        else:
+            cgfx.write_texture(cg, t, img)
+        written += 1
+    return written
+
+
 def prepare(path, title, year, workdir, font_file=None, picture=None):
     """The banner file to put in the CIA, with this game's title and picture: (path, note), where note says what was
-    added (see Banner.changes). Only the main model's block of the file is rewritten; the language models and the
-    sound keep their bytes."""
+    added (see Banner.changes). The main model gets them, and so does every language model with its own copy of
+    the plate or the picture's texture; the other language models and the sound keep their bytes."""
     b = Banner(path).validate()
     try:
         new, note = b.changes(title, year, font_file, picture)
         cg = bytearray(b.common)
-        texs = cgfx.textures(bytes(cg))
-        for name, img in new.items():
-            if texs[name]["fmt"] == cgfx.PICA_RGBA8:
-                cgfx.write_rgba8(cg, texs[name], img)
-            else:
-                cgfx.write_texture(cg, texs[name], img)
+        if _write_textures(cg, new) != len(new):
+            raise DamagedBannerError(f"{b.path.name}'s 3D model isn't laid out as expected.")
+        models = {b.common_off: cg}
+        for start, block in b.language_blocks():
+            block = bytearray(block)
+            if _write_textures(block, new):
+                models[start] = block
     except MODEL_ERRORS as e:
         raise DamagedBannerError(f"{b.path.name}'s 3D model can't be used ({e}).")
     dest = Path(workdir) / "nsui_banner.bnr"
-    dest.write_bytes(cgfx.cbmd_replace_common(b.data, cg))
+    dest.write_bytes(cgfx.cbmd_replace(b.data, models))
     return dest, note
+
+
+def _language_textures(lang):
+    """{name: picture} of a language model's textures, which the Home Menu uses in place of the main model's."""
+    out = {}
+    for name, t in cgfx.textures(lang).items():
+        try:
+            out[name] = cgfx.read_texture(lang, t)
+        except ValueError:
+            pass                                             # a lookup or normal-map format: not drawn
+    return out
 
 
 def scene(path, title, year, font_file=None, picture=None):
@@ -314,8 +350,9 @@ def scene(path, title, year, font_file=None, picture=None):
     b = Banner(path)
     try:
         overrides, _ = b.changes(title, year, font_file, picture)
-        parts = model3d.textured(bytes(b.common), overrides)
         lang = b.language_model()
+        textures = {**(_language_textures(lang) if lang else {}), **overrides}
+        parts = model3d.textured(bytes(b.common), textures)
         if lang:
             parts += model3d.textured(bytes(lang), overrides)
     except MODEL_ERRORS as e:

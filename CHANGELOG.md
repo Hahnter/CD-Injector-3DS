@@ -12,6 +12,10 @@
   or box art) from libretro's thumbnails, the collection RetroArch and NSUI use. **More options** can do it for every
   game with no picture on the PC (off by default); the command line has `--download-picture`. This is the only time
   the app goes online, and each picture is downloaded once and kept with the app's settings.
+- **Fixed: NSUI's PC Engine banner kept its old title plate on the 3DS.** Each of its language sections holds its own
+  copy of the plate and of the TV's picture, and those copies are what the 3DS shows. The app put the game's title
+  and picture only in the main section, so the preview looked right but the 3DS showed NSUI's own plate. Now every
+  copy gets them, and the preview shows what the 3DS does.
 - **Remaking a game you made before:** the title filled in may differ from the one you used (it used to come from
   the file name). The title ID and save folder come from the title, so type the old title to update that copy.
 

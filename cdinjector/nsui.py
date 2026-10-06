@@ -223,14 +223,14 @@ class Banner:
         (l0, l1), (a0, a1) = self.texture(self.plate).getextrema()
         return l0 == l1 and a0 == a1
 
-    def changes(self, title, year, font_file=None, picture=None):
+    def changes(self, title, year, font_file=None, picture=None, plate_style="nsui"):
         """{texture name: new picture} for this game, and a note saying what was added. The plate gets the game's
         title and year (a blank plate is drawn whole; a filled one keeps NSUI's badge and gets new text), and the
         game's picture, if there is one, goes in the frame or on the TV screen."""
         if self.plate_blank():
-            new = {self.plate: plate_texture(title, year, font_file)}
+            new = {self.plate: plate_texture(title, year, font_file, plate_style)}
         else:
-            new = {self.plate: retitled_plate(self.texture(self.plate), title, year, font_file)}
+            new = {self.plate: retitled_plate(self.texture(self.plate), title, year, font_file, plate_style)}
         if picture is not None and self.is_frame:
             new[self.picture] = framed_picture(self.texture(self.picture), picture)
         elif picture is not None and self.screen:
@@ -239,11 +239,11 @@ class Banner:
         return new, "your picture and title added" if len(new) > 1 else "title added"
 
 
-def plate_texture(title, year, font_file=None):
+def plate_texture(title, year, font_file=None, plate_style="nsui"):
     """Our whole Virtual Console plate as the 256 x 64 luminance + alpha texture the banner uses. Like NSUI's own,
     its see-through texels are white, so the 3DS's smoothing doesn't give the plate a dark outline."""
     from PIL import Image
-    plate = bn.draw_plate(title, year, S=4, font_file=font_file).reduce(4)
+    plate = bn.draw_plate(title, year, S=4, font_file=font_file, style=plate_style).reduce(4)
     alpha = plate.getchannel("A")
     lum = plate.convert("L")
     lum.paste(255, (0, 0), alpha.point(lambda v: 255 if v == 0 else 0))
@@ -268,12 +268,12 @@ def wiped_plate(plate):
     return Image.merge("LA", (rgba.convert("L"), rgba.getchannel("A")))
 
 
-def retitled_plate(plate, title, year, font_file=None):
+def retitled_plate(plate, title, year, font_file=None, plate_style="nsui"):
     """A banner's own plate (luminance + alpha) with this game's title and year in place of the old ones. The badge
     and rim stay NSUI's."""
     from PIL import Image
     rgba = _wiped(plate)
-    rgba.alpha_composite(bn.plate_text(title, year, S=4, font_file=font_file).reduce(4))
+    rgba.alpha_composite(bn.plate_text(title, year, S=4, font_file=font_file, style=plate_style).reduce(4))
     return Image.merge("LA", (rgba.convert("L"), rgba.getchannel("A")))
 
 
@@ -325,13 +325,13 @@ def _write_textures(cg, new):
     return written
 
 
-def prepare(path, title, year, workdir, font_file=None, picture=None):
+def prepare(path, title, year, workdir, font_file=None, picture=None, plate_style="nsui"):
     """The banner file to put in the CIA, with this game's title and picture: (path, note), where note says what was
     added (see Banner.changes). The main model gets them, and so does every language model with its own copy of
     the plate or the picture's texture; the other language models and the sound keep their bytes."""
     b = Banner(path).validate()
     try:
-        new, note = b.changes(title, year, font_file, picture)
+        new, note = b.changes(title, year, font_file, picture, plate_style)
         cg = bytearray(b.common)
         if _write_textures(cg, new) != len(new):
             raise DamagedBannerError(f"{b.path.name}'s 3D model isn't laid out as expected.")
@@ -358,12 +358,12 @@ def _language_textures(lang):
     return out
 
 
-def scene(path, title, year, font_file=None, picture=None):
+def scene(path, title, year, font_file=None, picture=None, plate_style="nsui"):
     """The banner's 3D parts ready to draw: the main model and the first language model, with this game's plate
     and picture where prepare() would put them."""
     b = Banner(path)
     try:
-        overrides, _ = b.changes(title, year, font_file, picture)
+        overrides, _ = b.changes(title, year, font_file, picture, plate_style)
         lang = b.language_model()
         textures = {**(_language_textures(lang) if lang else {}), **overrides}
         parts = model3d.textured(bytes(b.common), textures)
@@ -374,10 +374,10 @@ def scene(path, title, year, font_file=None, picture=None):
     return parts
 
 
-def preview_image(path, title, year, size=model3d.VIEW, yaw=0.0, font_file=None, picture=None):
+def preview_image(path, title, year, size=model3d.VIEW, yaw=0.0, font_file=None, picture=None, plate_style="nsui"):
     """A picture of the banner's 3D model (frame or console + TV) and plate, as prepare() would make it, for the
     app's preview."""
-    parts = scene(path, title, year, font_file, picture)
+    parts = scene(path, title, year, font_file, picture, plate_style)
     if not parts:
         raise NSUIError("There's no 3D model in this banner to show.")
     return model3d.render(parts, yaw, size)

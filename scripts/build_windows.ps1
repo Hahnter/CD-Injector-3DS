@@ -60,6 +60,7 @@ VSVersionInfo(
     --version-file (Join-Path $Build "version_info.txt") `
     --add-data ((Join-Path $Repo "resources\cores") + ";resources\cores") `
     --add-data ((Join-Path $Repo "resources\tools\windows") + ";resources\tools\windows") `
+    --add-data ((Join-Path $Repo "resources\fonts") + ";resources\fonts") `
     --exclude-module numpy `
     --distpath $DistPath --workpath (Join-Path $Build "pyinstaller") --specpath $Build `
     cd_injector.py
@@ -70,6 +71,7 @@ $App = "$DistPath\$ExeName"
 Copy-Item README.md, CHANGELOG.md, LICENSE, THIRD-PARTY-NOTICES.md, SECURITY.md $App
 & $Python scripts\collect_licenses.py "$App\licenses"
 if ($LASTEXITCODE -ne 0) { throw "Couldn't collect the licence texts" }
+Copy-Item resources\fonts\OFL.txt "$App\licenses\M-PLUS-1p-OFL.txt"
 
 $Zip = "$DistPath\$Base-windows.zip"
 $Src = "$DistPath\$Base-emulator-source.tar.gz"

@@ -161,10 +161,18 @@ The preview shows the banner's 3D model and plate as a still picture.
   direction gets black bars.
 - **Banner sound:** a `.wav` (8- or 16-bit PCM, at most 3 seconds) or a `.bcwav` that plays on the Home Menu. Empty
   means a short chime made by this program. An NSUI banner keeps its own sound.
+- **Plate text:** how the title and year are written on the Virtual Console plate.
+  - *NSUI style* (the default): as NSUI writes them, in Arial Bold, so the plate matches your NSUI-made games.
+  - *Official style*: laid out like Nintendo's own Virtual Console banners, measured from them. A title that fits
+    takes one line of 12-pixel capitals, and a long one is squeezed a little rather than shrunk. A longer title takes
+    two lines of 10-pixel capitals, split after a colon if it has one. "Released: year" is spaced out the way
+    Nintendo does it, and the ink is Nintendo's softer gray. The font is M PLUS 1p Bold, a free look-alike of
+    Nintendo's Rodin that comes with the app, unless you choose a font below.
 - **Title plate font:** any `.ttf` or `.otf` file, used for the title and "Released" text on the plate. Empty
-  means Arial Bold, the font NSUI uses, so the plate matches your NSUI-made banners. Nintendo's own Virtual Console
-  banners use Rodin; Sony's "SCE-PS3 Rodin Latin Bold" looks closest to it. It can't be included here, but it works
-  if you point the app at your own copy (an RPCS3 install has it at `dev_flash\data\font\SCE-PS3-RD-B-LATIN.TTF`).
+  means Arial Bold in NSUI style and M PLUS 1p Bold in official style. Nintendo's own Virtual Console banners use
+  Rodin; Sony's "SCE-PS3 Rodin Latin Bold" looks closest to it. It can't be included here, but it works if you point
+  the app at your own copy (an RPCS3 install has it at `dev_flash\data\font\SCE-PS3-RD-B-LATIN.TTF`). With official
+  style it gives the closest match to Nintendo's banners.
 
 The NSUI banner and icon fields also accept an ordinary picture (PNG, JPG and so on) to use as the banner or icon as
 it is.

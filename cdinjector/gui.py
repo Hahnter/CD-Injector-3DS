@@ -349,7 +349,9 @@ class App(tk.Tk):
         self.v_fit = tk.StringVar(value="height")
         self.v_sound = tk.StringVar()
         self.v_font = tk.StringVar(value=self.settings.get("plate_font", ""))
-        for var in (self.v_fit, self.v_sound, self.v_font):
+        self.v_plate_style = tk.StringVar(value="official" if self.settings.get("plate_style") == "official" else "nsui")
+        self.v_plate_style.trace_add("write", lambda *a: self._remember("plate_style", self.v_plate_style.get()))
+        for var in (self.v_fit, self.v_sound, self.v_font, self.v_plate_style):
             var.trace_add("write", lambda *a: self._schedule_preview())
         self.v_font.trace_add("write", lambda *a: self._remember_font())
         self.v_autofill = tk.BooleanVar(value=self.settings.get("autofill", "on") != "off")
@@ -495,42 +497,54 @@ class App(tk.Tk):
         ttk.Label(f, text="How your picture fits the square icon. The other direction gets black bars.",
                   style="Hint.TLabel").grid(row=1, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
 
+        ttk.Label(f, text="Plate text", style="Step.TLabel").grid(row=2, column=0, sticky="w")
+        ps = ttk.Frame(f)
+        ps.grid(row=2, column=1, columnspan=3, sticky="w", padx=8)
+        for t, v in (("NSUI style", "nsui"), ("Official style", "official")):
+            ttk.Radiobutton(ps, text=t, value=v, variable=self.v_plate_style).pack(side="left", padx=(0, 12))
+        ttk.Label(f, text="How the title and year are written on the Virtual Console plate. NSUI style: as NSUI "
+                          "writes them, in Arial Bold, to match your NSUI-made games. Official style: laid out like "
+                          "Nintendo's own Virtual Console banners, in a free look-alike of Nintendo's font (or the font "
+                          "chosen below).", style="Hint.TLabel", wraplength=560, justify="left").grid(
+            row=3, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
+
         rows = [("Banner sound", self.v_sound, [("Sound", "*.wav *.bcwav")],
                  "A .wav or .bcwav that plays on the Home Menu. Empty means a short built-in chime. "
                  "An NSUI banner keeps its own sound."),
                 ("Title plate font", self.v_font, [("Font", "*.ttf *.otf")],
                  "A .ttf or .otf file for the title and year on the Virtual Console plate. Empty means "
-                 "Arial Bold, the font NSUI uses. Nintendo's own banners use Rodin, which you'd supply yourself.")]
+                 "Arial Bold in NSUI style and M PLUS 1p Bold (a free look-alike of Nintendo's Rodin, included) in "
+                 "official style. A Rodin font of your own gives the closest match to Nintendo's banners.")]
         for i, (label, var, types, note) in enumerate(rows):
-            r = 2 + i * 2
+            r = 4 + i * 2
             ttk.Label(f, text=label, style="Step.TLabel").grid(row=r, column=0, sticky="w")
             ttk.Entry(f, textvariable=var, width=52).grid(row=r, column=1, sticky="ew", padx=8)
             ttk.Button(f, text="Choose…", command=lambda v=var, t=types: self._browse_into(v, t)).grid(row=r, column=2)
             ttk.Button(f, text="Clear", command=lambda v=var: v.set("")).grid(row=r, column=3, padx=(4, 0))
             ttk.Label(f, text=note, style="Hint.TLabel", wraplength=560, justify="left").grid(
                 row=r + 1, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
-        ttk.Label(f, text="Fill in", style="Step.TLabel").grid(row=6, column=0, sticky="w")
+        ttk.Label(f, text="Fill in", style="Step.TLabel").grid(row=8, column=0, sticky="w")
         ttk.Checkbutton(f, text="The title, publisher, year and picture, when the game is recognised",
-                        variable=self.v_autofill).grid(row=6, column=1, columnspan=3, sticky="w", padx=8)
+                        variable=self.v_autofill).grid(row=8, column=1, columnspan=3, sticky="w", padx=8)
         ttk.Label(f, text="Sega CD discs carry their own details; PC Engine CD and Sega CD discs are also looked up in "
                           "the lists of Redump and MAME that come with the app (this never goes online). Anything you "
                           "type or choose yourself is never replaced.", style="Hint.TLabel", wraplength=560,
-                  justify="left").grid(row=7, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
-        ttk.Label(f, text="Pictures folder", style="Step.TLabel").grid(row=8, column=0, sticky="w")
-        ttk.Entry(f, textvariable=self.v_pictures, width=52).grid(row=8, column=1, sticky="ew", padx=8)
-        ttk.Button(f, text="Choose…", command=self._pick_pictures).grid(row=8, column=2)
-        ttk.Button(f, text="Clear", command=lambda: self.v_pictures.set("")).grid(row=8, column=3, padx=(4, 0))
+                  justify="left").grid(row=9, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
+        ttk.Label(f, text="Pictures folder", style="Step.TLabel").grid(row=10, column=0, sticky="w")
+        ttk.Entry(f, textvariable=self.v_pictures, width=52).grid(row=10, column=1, sticky="ew", padx=8)
+        ttk.Button(f, text="Choose…", command=self._pick_pictures).grid(row=10, column=2)
+        ttk.Button(f, text="Clear", command=lambda: self.v_pictures.set("")).grid(row=10, column=3, padx=(4, 0))
         ttk.Label(f, text="Where to look for each game's picture: RetroArch's thumbnails folder, or your own folder of "
                           "pictures named after the games. Empty means RetroArch's thumbnails, if RetroArch is on this "
                           "PC.", style="Hint.TLabel", wraplength=560,
-                  justify="left").grid(row=9, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
+                  justify="left").grid(row=11, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
         ttk.Checkbutton(f, text="Download the picture from libretro's thumbnails when there's none on this PC",
-                        variable=self.v_online).grid(row=10, column=1, columnspan=3, sticky="w", padx=8)
+                        variable=self.v_online).grid(row=12, column=1, columnspan=3, sticky="w", padx=8)
         ttk.Label(f, text="Only for games the app recognises. This goes online, to the same picture collection "
                           "RetroArch and NSUI use; each picture is downloaded once and kept on this PC. Off: the app "
                           "only goes online when you press Download.", style="Hint.TLabel", wraplength=560,
-                  justify="left").grid(row=11, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
-        ttk.Button(f, text="Close", command=win.destroy).grid(row=12, column=3, sticky="e", pady=(4, 0))
+                  justify="left").grid(row=13, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
+        ttk.Button(f, text="Close", command=win.destroy).grid(row=14, column=3, sticky="e", pady=(4, 0))
         win.bind("<Escape>", lambda e: win.destroy())
         win.grab_set()
         win.focus_set()
@@ -900,7 +914,7 @@ class App(tk.Tk):
         (a still picture)."""
         try:
             img = nsui.preview_image(path, title, self.v_year.get().strip(), (CW, CH), font_file=self.font_file(),
-                                     picture=self.image)
+                                     picture=self.image, plate_style=self.v_plate_style.get())
         except nsui.NSUIError as e:
             self.c_banner.create_text(CW // 2, CH // 2, width=340, justify="center", fill=BAD, text=str(e))
             return
@@ -941,7 +955,8 @@ class App(tk.Tk):
                     img, quad = bn.draw_custom_banner(banner_file), bn.CUSTOM_QUAD
                 else:
                     img = bn.draw_vc_banner(self.image, title, self.v_year.get().strip(), system,
-                                            bn.parse_color(self.v_color.get()), self.font_file())
+                                            bn.parse_color(self.v_color.get()), self.font_file(),
+                                            self.v_plate_style.get())
                     quad = bn.BANNER_QUAD
                 self._photos["banner"] = ImageTk.PhotoImage(bn.on_screen(img, quad, (CW, CH)))
                 self.c_banner.create_image(CW // 2, CH // 2, image=self._photos["banner"])
@@ -976,7 +991,7 @@ class App(tk.Tk):
             banner_file=Path(self.v_banner_file.get()) if self.nsui_mode() and self.v_banner_file.get().strip() else None,
             frame_color=bn.parse_color(self.v_color.get()),
             sound_file=Path(self.v_sound.get()) if self.v_sound.get().strip() else None,
-            plate_font=self.font_file())
+            plate_font=self.font_file(), plate_style=self.v_plate_style.get())
         self.settings.update(bios=self.v_bios.get(), out=self.v_out.get())
         self._save_settings()
         self.busy = True

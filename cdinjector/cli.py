@@ -22,7 +22,8 @@ def _build(a):
     opt = BuildOptions(game=a.game, bios=a.bios, title=a.title, publisher=a.publisher, year=a.year,
                        system=a.system, out_dir=a.out, image=a.image, icon_fit=a.icon_fit,
                        icon_file=a.icon_file, banner_file=a.banner_file, frame_color=color,
-                       sound_file=a.sound, plate_font=a.plate_font, lookup=not a.no_lookup, pictures_dir=a.pictures,
+                       sound_file=a.sound, plate_font=a.plate_font, plate_style=a.plate_style,
+                       lookup=not a.no_lookup, pictures_dir=a.pictures,
                        download_picture=a.download_picture, nsui_program=a.nsui, nsui_console=a.console)
     last = [-1]
 
@@ -80,6 +81,9 @@ def main(argv=None):
     b.add_argument("--banner-file", type=Path, help="use a ready-made banner (.bnr / NSUI banner .bin), or a picture")
     b.add_argument("--sound", type=Path, help=".wav or .bcwav banner sound")
     b.add_argument("--plate-font", type=Path, help="font file (.ttf) for the title plate's text")
+    b.add_argument("--plate-style", choices=bn.PLATE_STYLES, default="nsui",
+                   help="lay out the plate's text as NSUI does (default) or as on Nintendo's own Virtual Console "
+                        "banners (official: a look-alike of Nintendo's font unless --plate-font is given)")
     b.add_argument("--pictures", type=Path, help="folder to find the game's picture in (default: RetroArch's thumbnails)")
     b.add_argument("--download-picture", action="store_true",
                    help="if no picture is found on this PC, download one from libretro's thumbnails (goes online)")

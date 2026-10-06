@@ -58,6 +58,14 @@ def font_path(bold=True):
     return None
 
 
+def official_font():
+    """The font the app's "official" title plate text uses when no font is chosen: M PLUS 1p Bold (SIL Open Font
+    License, see resources/fonts/OFL.txt), which looks close to the Rodin of Nintendo's plates. Only its Latin letters
+    are included."""
+    path = resource_dir() / "fonts" / "MPLUS1p-Bold-Latin.ttf"
+    return str(path) if path.is_file() else None
+
+
 def font_path_rounded():
     """A heavy, rounded font for the "Virtual Console" wordmark (the caller slants it), or None."""
     names = ["ARLRDBD.TTF", "segoeuib.ttf", "arialbd.ttf", "DejaVuSans-Bold.ttf", "Arial Bold.ttf"]

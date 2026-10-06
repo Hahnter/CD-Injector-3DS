@@ -1,19 +1,10 @@
 # Changelog
 
-## 1.2.0 (unreleased)
+## 1.2.0 (2026-10-06)
 
-- **Filled in for you.** Choosing a game fills in its title, publisher and year when the disc is recognised: Sega CD
-  discs by the serial number on the disc, PC Engine CD discs by their data track or `.cue` name, using lists from
-  Redump (via libretro's database) and MAME that come with the app. The picture is found in RetroArch's thumbnails,
-  or in a folder of your own (**More options > Pictures folder**). Nothing goes online, and nothing you typed is
-  replaced. The command line does the same for whatever you don't give it (`--no-lookup` turns it off, `--pictures`
-  names the folder).
-- **Download the picture.** A **Download** button next to the picture fetches the game's title screen (or screenshot,
-  or box art) from libretro's thumbnails, the collection RetroArch and NSUI use. **More options** can do it for every
-  game with no picture on the PC (off by default); the command line has `--download-picture`. This is the only time
-  the app goes online, and each picture is downloaded once and kept with the app's settings. A game whose picture
-  libretro keeps under a slightly different name ("Sonic The Hedgehog CD", or "Dune (USA)" for a disc called
-  "Dune (USA) (En,Fr,De,Es,It)") is found too.
+Banners that look good with or without NSUI, games that fill themselves in, and NSUI's own 3D banners without the
+export step. Remake a CIA to get the new banner; the emulators inside it are unchanged from 1.0.3.
+
 - **New banners that stand out in 3D, with no NSUI needed.** The app's own banners are now made of layers at
   different depths, like NSUI's 3D banners: with the 3D slider up, the plate floats in front and the picture sits
   behind it.
@@ -33,6 +24,18 @@
   Genesis for Sega CD games; the PC Engine, the TurboGrafx-16, or both by region (PC Engine on Japanese 3DS systems)
   for PC Engine CD games; or NSUI's 3D frame. Each plays its console's own tune. No more exporting a banner from
   NSUI first, and nothing of NSUI's comes with the app.
+- **Filled in for you.** Choosing a game fills in its title, publisher and year when the disc is recognised: Sega CD
+  discs by the serial number on the disc, PC Engine CD discs by their data track or `.cue` name, using lists from
+  Redump (via libretro's database) and MAME that come with the app. The picture is found in RetroArch's thumbnails,
+  or in a folder of your own (**More options > Pictures folder**). Nothing goes online, and nothing you typed is
+  replaced. The command line does the same for whatever you don't give it (`--no-lookup` turns it off, `--pictures`
+  names the folder).
+- **Download the picture.** A **Download** button next to the picture fetches the game's title screen (or screenshot,
+  or box art) from libretro's thumbnails, the collection RetroArch and NSUI use. **More options** can do it for every
+  game with no picture on the PC (off by default); the command line has `--download-picture`. This is the only time
+  the app goes online, and each picture is downloaded once and kept with the app's settings. A game whose picture
+  libretro keeps under a slightly different name ("Sonic The Hedgehog CD", or "Dune (USA)" for a disc called
+  "Dune (USA) (En,Fr,De,Es,It)") is found too.
 - **Fixed: NSUI's PC Engine banner kept its old title plate on the 3DS.** Each of its language sections holds its own
   copy of the plate and of the TV's picture, and those copies are what the 3DS shows. The app put the game's title
   and picture only in the main section, so the preview looked right but the 3DS showed NSUI's own plate. Now every

@@ -297,6 +297,11 @@ Latin letters is stored as `Game <id>`. The name you typed still shows on the Ho
    PyInstaller): `powershell -File scripts\build_windows.ps1 -Python .venv\Scripts\python.exe`. It runs the checks
    and tests first, then writes the app folder, the zip, the emulator source archive and `SHA256SUMS.txt`.
 
+Releases are built by the `release` workflow (**Actions > release > Run workflow**, on `main`). It packages the
+version in `cdinjector/__init__.py` with the notes from its section of `CHANGELOG.md`. While the emulators and tools
+are unchanged, it takes them from the last release built with them, checked against their SHA-256 (see the
+workflow).
+
 Run the tests on their own with `python -m unittest discover -s tests -t .`. See
 [CONTRIBUTING.md](CONTRIBUTING.md) before sending changes.
 

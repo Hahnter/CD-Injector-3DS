@@ -1,7 +1,9 @@
 """Checks on recognising discs and finding their pictures."""
 
+import io
 import re
 import sys
+import urllib.error
 import tempfile
 import unittest
 import zlib
@@ -9,6 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from cdinjector import download  # noqa: E402
 from cdinjector import gameinfo as gi  # noqa: E402
 from cdinjector.builder import BuildOptions, fill_in  # noqa: E402
 from cdinjector.disc import Disc  # noqa: E402
@@ -135,6 +138,73 @@ class FillInTests(unittest.TestCase):
             fill_in(opt, d, "segacd")
             self.assertEqual((opt.title, opt.publisher, opt.year), ("My Own Title", "Sega", "1993"))
             self.assertEqual(opt.info["recognised"], "Sonic the Hedgehog CD (Japan)")
+
+
+class FakeServer:
+    """Stands in for libretro's thumbnails: {URL: body}; anything else is a 404."""
+
+    def __init__(self, files, final_url=None):
+        self.files, self.final_url, self.asked = files, final_url, []
+
+    def __call__(self, request, timeout=None):
+        url = request.full_url
+        self.asked.append(url)
+        if url not in self.files:
+            raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+        body, final = self.files[url], self.final_url or url
+
+        class Response(io.BytesIO):
+            def geturl(self):
+                return final
+        return Response(body)
+
+
+def a_png():
+    from PIL import Image
+    out = io.BytesIO()
+    Image.new("RGB", (320, 224), (10, 20, 200)).save(out, "PNG")
+    return out.getvalue()
+
+
+class DownloadTests(unittest.TestCase):
+    name = "Akumajou Dracula X - Chi no Rondo (Japan)"
+
+    def test_the_title_screen_is_fetched_once_and_kept(self):
+        url = download.picture_url("pce", "Named_Titles", self.name)
+        self.assertEqual(url, "https://raw.githubusercontent.com/libretro-thumbnails/NEC_-_PC_Engine_CD_-_TurboGrafx-CD"
+                              "/master/Named_Titles/Akumajou%20Dracula%20X%20-%20Chi%20no%20Rondo%20%28Japan%29.png")
+        server = FakeServer({url: a_png()})
+        with tempfile.TemporaryDirectory() as t:
+            got = download.download_picture("pce", self.name, t, opener=server)
+            self.assertEqual(got, Path(t) / gi.THUMBNAIL_SYSTEMS["pce"] / "Named_Titles" / (self.name + ".png"))
+            self.assertEqual(gi.find_picture("pce", [self.name], [t]), got)      # found offline from now on
+            download.download_picture("pce", self.name, t, opener=server)
+            self.assertEqual(len(server.asked), 1)
+
+    def test_box_art_when_there_is_no_title_screen(self):
+        url = download.picture_url("segacd", "Named_Boxarts", "Sonic CD (Europe)")
+        with tempfile.TemporaryDirectory() as t:
+            got = download.download_picture("segacd", "Sonic CD (Europe)", t, opener=FakeServer({url: a_png()}))
+            self.assertEqual(got.parent.name, "Named_Boxarts")
+            self.assertIsNone(download.download_picture("segacd", "Not A Game", t, opener=FakeServer({})))
+
+    def test_bad_downloads_are_refused(self):
+        url = download.picture_url("pce", "Named_Titles", self.name)
+        with tempfile.TemporaryDirectory() as t:
+            for server in (FakeServer({url: b"<html>not a picture</html>"}),
+                           FakeServer({url: b"\x89PNG\r\n\x1a\n" + b"broken" * 10}),
+                           FakeServer({url: b"\x89PNG\r\n\x1a\n" + bytes(download.MAX_BYTES)}),
+                           FakeServer({url: a_png()}, final_url="https://elsewhere.example/x.png")):
+                with self.assertRaises(download.DownloadError):
+                    download.download_picture("pce", self.name, t, opener=server)
+            self.assertEqual(list(Path(t).rglob("*.png")), [])
+
+    def test_no_connection_is_a_clean_error(self):
+        def offline(request, timeout=None):
+            raise urllib.error.URLError("no route to host")
+        with tempfile.TemporaryDirectory() as t:
+            with self.assertRaises(download.DownloadError):
+                download.download_picture("pce", self.name, t, opener=offline)
 
 
 if __name__ == "__main__":

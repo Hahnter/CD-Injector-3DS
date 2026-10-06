@@ -29,7 +29,8 @@ option.
 - **Boots straight into the game.** Saves go to `sdmc:/emus3ds/saves/<game>/`, including when you close the game
   from HOME.
 - **Fills itself in.** The game's title, publisher and year are filled in when the disc is recognised, and its
-  picture too when RetroArch's thumbnails are on the PC. Nothing goes online. See [Filled in for you](#filled-in-for-you).
+  picture too: from RetroArch's thumbnails on the PC, or downloaded with one click. See
+  [Filled in for you](#filled-in-for-you).
 - **A Home Menu banner and icon that match NSUI's.** The banner puts your game's title screen in a frame, in full
   color, with the Virtual Console title plate below, in the same place and style as NSUI's frame banners. The icon
   gets the same silver border. Or use NSUI's 3D PC Engine, Genesis or frame banner as a template: export it once
@@ -97,7 +98,7 @@ or Genesis ones. The banner is stored in full color (8 bits per channel; bannert
 ### Filled in for you
 
 When you choose a game, the app works out which disc it is and fills in the title, publisher and year. It never
-replaces anything you typed or chose, and it never goes online.
+replaces anything you typed or chose, and recognising the disc never goes online.
 
 - **Sega CD** discs carry their own serial number and year, so they're recognised whatever the files are called.
 - **PC Engine CD** discs carry no such details. They're recognised by their data track (its size and checksum, as
@@ -106,6 +107,9 @@ replaces anything you typed or chose, and it never goes online.
 - **The picture** comes from RetroArch's thumbnails when RetroArch is on the PC (a title screen if there is one, else
   a screenshot, else box art), or from a folder of your own pictures named after the games (**More options >
   Pictures folder**).
+- **Or download it:** press **Download** next to the picture, and the app fetches the game's picture from libretro's
+  thumbnails, the collection RetroArch and NSUI use. To do that for every game that has no picture on the PC, turn it
+  on in **More options**. Each picture is downloaded once and kept with the app's settings.
 
 The details come from the lists of [Redump](http://redump.org/) (via libretro's database) and MAME, which come with
 the app. They cover about 560 PC Engine CD and 580 Sega CD discs. You can turn filling in off in **More options**.
@@ -218,9 +222,12 @@ No. They contain the game and the BIOS.
 
 ## Privacy and security
 
-- **No internet, no tracking.** The app never connects to the internet and collects nothing. It reads only the
-  files you choose, and writes only the CIA, temporary files (removed when it finishes) and a small settings file
-  (`%APPDATA%\CD Injector 3DS\settings.json`) with the paths and colors you picked.
+- **No tracking, and online only when you ask.** The app collects nothing. It goes online only to download a
+  game's picture: when you press **Download**, or for every game if you turn that on in **More options**. It then
+  fetches that one picture from libretro's thumbnails on GitHub and sends nothing about you or your PC. It reads only
+  the files you choose, and writes only the CIA, temporary files (removed when it finishes), the pictures it
+  downloads and a small settings file (`%APPDATA%\CD Injector 3DS\settings.json`) with the paths and colors you
+  picked.
 - **Files are checked before use.** A damaged, oversized or booby-trapped `.cue`, banner, icon, picture or sound
   gives an error message instead of being used. Only files inside the game's own folder are packed into a CIA.
 - **Checking a download.** Each release has a `SHA256SUMS.txt`; compare it with

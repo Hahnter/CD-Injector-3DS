@@ -10,6 +10,7 @@ Special characters are built with chr() so this file stays plain ASCII (see scri
 import json
 import os
 import random
+import re
 import struct
 import sys
 import tempfile
@@ -493,15 +494,23 @@ class SourceRulesTests(unittest.TestCase):
         return [p for p in (ROOT / "cdinjector").glob("*.py")] + [ROOT / "cd_injector.py"]
 
     def test_no_network_and_no_dynamic_code(self):
+        """No module goes online, except download.py, which fetches a game's picture only when the user asks; and
+        nothing runs code it was handed."""
         # the names are assembled from pieces so that this list is not itself flagged by code scanners
         modules = ("sock" "et", "url" "lib", "ht" "tp", "requ" "ests", "ft" "plib", "smtp" "lib", "web" "browser",
                    "pic" "kle", "mar" "shal")
         calls = ("ev" "al(", "ex" "ec(", "os.sys" "tem(", "__imp" "ort__(", "yaml.lo" "ad(", "shell" "=True")
-        banned = tuple("import " + m for m in modules) + calls
         for p in self.sources():
             text = p.read_text(encoding="utf-8")
-            for word in banned:
+            allowed = {"url" "lib"} if p.name == "download.py" else set()
+            for word in tuple("import " + m for m in modules if m not in allowed) + calls:
                 self.assertNotIn(word, text, f"{p.name} uses {word}")
+
+    def test_the_download_goes_to_one_place_only(self):
+        text = (ROOT / "cdinjector" / "download.py").read_text(encoding="utf-8")
+        self.assertIn('HOST = "https://raw.githubusercontent.com/libretro-thumbnails"', text)
+        self.assertEqual(len(re.findall(r"https?://", text)), 1, "download.py names a second web address")
+        self.assertEqual(text.count("opener(request"), 1)
 
     def test_tools_are_only_run_with_argument_lists(self):
         for p in self.sources():

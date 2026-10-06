@@ -2,8 +2,12 @@
 
 ## What this app does and doesn't do
 
-- It **never connects to the internet**. It has no update check, no telemetry and no analytics. (The tests fail
-  if networking code is added.)
+- It goes online **only to download a game's picture**, when you press **Download** or turn on automatic picture
+  downloads in **More options** (off by default). It then fetches one PNG over HTTPS from
+  `raw.githubusercontent.com/libretro-thumbnails`, checks it is a real picture of a sensible size, and keeps it in
+  `%APPDATA%\CD Injector 3DS\pictures`. It has no update check, no telemetry and no analytics. (All of this lives in
+  `cdinjector/download.py`; the tests fail if any other part of the app gets networking code, or if that file names
+  a second web address.)
 - It reads only the files you choose: the game's `.cue` and `.bin` files, the BIOS, a picture, and an optional NSUI
   banner, icon, sound or font.
 - It writes only the CIA, temporary files (deleted when it finishes) and one small settings file,

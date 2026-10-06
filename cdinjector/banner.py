@@ -347,48 +347,212 @@ def frame_palette(color):
     return body, edge, line, bezel
 
 
-def draw_vc_banner(image, title, year, system, color=None, font_file=None, plate_style="nsui"):
-    """The banner picture, 256 x 192 (the BANNER_QUAD part of the top screen): the game's title screen in a frame of
-    the chosen colour with the Virtual Console title plate below, laid out like NSUI's frame banners.
-    color: (r, g, b), or None for the system's own colour."""
+# The banner's layers, back to front, each at its own depth in the 3D model (model units towards the camera) so that
+# the banner stands out of the screen with the 3D slider up, as NSUI's do. NSUI's frame sits at about 1.8 and its
+# plate floats at 8; the game's picture is set a little behind the frame's face.
+PICTURE_DEPTH, FRAME_DEPTH, PLATE_DEPTH = 1.2, 1.8, 8.0
+PLATE_QUAD = (92, 164, 308, 218)                       # PLATE_BOX on whole pixels: the plate is drawn 216 x 54
+FRAME_QUAD = (133, 48, 267, 147)                       # FRAME_BOX on whole pixels
+PICTURE_QUAD = (145, 60, 255, 132)                     # WINDOW_BOX and a little more, so no gap shows in 3D
+
+
+def _box_in(b, origin, S, grow=0.0):
+    """A box in screen pixels as a box in a layer that starts at `origin`, drawn at S x."""
+    return (round((b[0] - origin[0] - grow) * S), round((b[1] - origin[1] - grow) * S),
+            round((b[2] - origin[0] + grow) * S) - 1, round((b[3] - origin[1] + grow) * S) - 1)
+
+
+def _shade(colour, factor):
+    return tuple(max(0, min(255, round(c * factor))) for c in colour)
+
+
+def plate_layer(title, year, font_file=None, plate_style="nsui"):
+    """The title plate as a layer: (picture, quad, depth)."""
+    from PIL import Image
+    w, h = PLATE_QUAD[2] - PLATE_QUAD[0], PLATE_QUAD[3] - PLATE_QUAD[1]
+    plate = draw_plate(title, year, 4, font_file, plate_style).resize((w * 4, h * 4), Image.LANCZOS).reduce(4)
+    return plate, PLATE_QUAD, PLATE_DEPTH
+
+
+def _screen_picture(image, system, size, S):
+    """The game's picture (a console screenshot stretched to 4:3, filling `size`), or a dark screen with the system's
+    name when there's no picture."""
     from PIL import Image, ImageDraw
-    S = 4
-    qx, qy = BANNER_QUAD[:2]
-    W, H = (BANNER_QUAD[2] - qx) * S, (BANNER_QUAD[3] - qy) * S
-    out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-
-    def box(b, grow=0.0):
-        return (round((b[0] - qx - grow) * S), round((b[1] - qy - grow) * S),
-                round((b[2] - qx + grow) * S) - 1, round((b[3] - qy + grow) * S) - 1)
-
-    def fill(b, radius, colour, grow=0.0):
-        out.paste(tuple(colour) + (255,), (0, 0), _rounded_mask((W, H), box(b, grow), round(radius * S)))
-
-    body, edge, line, bezel = frame_palette(color or DEFAULT_COLORS.get(system, (120, 120, 120)))
-    for k in range(5 * S):                              # the frame's rounded edge catches the light
-        t = (1 - k / (5 * S)) ** 2
-        fill(FRAME_BOX, max(10 - k / S, 5), [round(b + (e - b) * t) for b, e in zip(body, edge)], -k / S)
-    fill(FRAME_BOX, 5, body, -5)
-    fill(BEZEL_BOX, 7, line, 1)
-    fill(BEZEL_BOX, 6, bezel)
-
-    x0, y0, x1, y1 = box(WINDOW_BOX)
-    size = (x1 - x0 + 1, y1 - y0 + 1)
     if image:
         pic = image if hasattr(image, "size") else Image.open(image)
-        screen = fit_image(tv_picture(pic.convert("RGBA")), size, "cover")
-    else:
-        screen = _gradient(size, (30, 30, 40), (10, 10, 14))
-        label = {"pce": "PC ENGINE CD", "segacd": "SEGA CD"}.get(system, "")
-        d = ImageDraw.Draw(screen)
-        font, label = _fit_text(d, label, size[0] - 12 * S, [s * S for s in (13, 12, 11, 10, 9, 8)])
-        d.text((size[0] // 2, size[1] // 2), label, font=font, fill=bezel, anchor="mm")
-    out.paste(screen.convert("RGBA"), (x0, y0), _rounded_mask(size, (0, 0, size[0] - 1, size[1] - 1), 3 * S))
+        return fit_image(tv_picture(pic.convert("RGBA")), size, "cover")
+    screen = _gradient(size, (30, 30, 40), (10, 10, 14))
+    label = {"pce": "PC ENGINE CD", "segacd": "SEGA CD"}.get(system, "")
+    d = ImageDraw.Draw(screen)
+    font, label = _fit_text(d, label, size[0] - 12 * S, [s * S for s in (13, 12, 11, 10, 9, 8)])
+    d.text((size[0] // 2, size[1] // 2), label, font=font, fill=(200, 200, 210), anchor="mm")
+    return screen
 
-    px0, py0, px1, py1 = box(PLATE_BOX)
-    out.alpha_composite(draw_plate(title, year, S, font_file, plate_style).resize((px1 - px0 + 1, py1 - py0 + 1), Image.LANCZOS),
-                        (px0, py0))
+
+def frame_layers(image, title, year, system, color=None, font_file=None, plate_style="nsui"):
+    """The "frame" banner as layers, back to front: the game's title screen, the coloured frame around it (its window
+    cut out, so the picture looks set into it in 3D) and the Virtual Console title plate, laid out like NSUI's frame
+    banners. color: (r, g, b), or None for the system's own colour."""
+    from PIL import Image, ImageDraw
+    S = 4
+    body, edge, line, bezel = frame_palette(color or DEFAULT_COLORS.get(system, (120, 120, 120)))
+
+    # the picture, with a soft shadow along its top edge where the frame overhangs it
+    pw, ph = PICTURE_QUAD[2] - PICTURE_QUAD[0], PICTURE_QUAD[3] - PICTURE_QUAD[1]
+    picture = _screen_picture(image, system, (pw * S, ph * S), S).convert("RGBA")
+    shade = Image.new("L", picture.size, 0)
+    top = round((WINDOW_BOX[1] - PICTURE_QUAD[1]) * S)
+    for k in range(4 * S):
+        ImageDraw.Draw(shade).line((0, top + k, picture.width, top + k), fill=round(110 * (1 - k / (4 * S)) ** 2))
+    picture.paste((0, 0, 0, 255), (0, 0), shade)
+    picture = picture.reduce(S)
+
+    # the frame: a rounded rim that catches the light, a face that's a little lighter at the top, a dark seam and
+    # the light inner rim, with the window cut out
+    fw, fh = (FRAME_QUAD[2] - FRAME_QUAD[0]) * S, (FRAME_QUAD[3] - FRAME_QUAD[1]) * S
+    frame = Image.new("RGBA", (fw, fh), (0, 0, 0, 0))
+
+    def mask(b, radius, grow=0.0):
+        return _rounded_mask((fw, fh), _box_in(b, FRAME_QUAD, S, grow), round(radius * S))
+
+    for k in range(5 * S):
+        t = (1 - k / (5 * S)) ** 2
+        frame.paste(tuple(round(b + (e - b) * t) for b, e in zip(body, edge)) + (255,), (0, 0),
+                    mask(FRAME_BOX, max(10 - k / S, 5), -k / S))
+    face = Image.new("RGBA", (fw, fh))
+    face.paste(_gradient((fw, fh), _shade(body, 1.08), _shade(body, 0.9)).convert("RGBA"))
+    frame.paste(face, (0, 0), mask(FRAME_BOX, 5, -5))
+    frame.paste(line + (255,), (0, 0), mask(BEZEL_BOX, 7, 1))
+    frame.paste(bezel + (255,), (0, 0), mask(BEZEL_BOX, 6))
+    frame.paste((0, 0, 0, 0), (0, 0), mask(WINDOW_BOX, 3))
+    frame = frame.reduce(S)
+
+    return [(picture, PICTURE_QUAD, PICTURE_DEPTH), (frame, FRAME_QUAD, FRAME_DEPTH),
+            plate_layer(title, year, font_file, plate_style)]
+
+
+# The CD case: the game's cover in a CD case, and its disc, with the game's title screen printed on it, sliding out
+# of the right side. The case takes the cover's shape: square for a jewel case (PC Engine CD and Japanese Mega-CD
+# covers), taller for the long cases of American Sega CD games.
+CASE_AREA = (100, 46, 300, 156)                        # the case and disc together stay inside this
+CASE_DEPTH, DISC_DEPTH = 2.4, 0.9
+CASE_SHAPES = (0.62, 1.14)                             # narrowest and widest case, width / height
+
+
+def _disc(image, system, d, S):
+    """The disc, d x d pixels at S x: the title screen printed on it, a silver rim, the clear hub and its hole."""
+    from PIL import Image, ImageChops, ImageDraw
+    D = d * S
+    c = D / 2
+    out = Image.new("RGBA", (D, D), (0, 0, 0, 0))
+    ring = Image.new("L", (D, D), 0)
+    ImageDraw.Draw(ring).ellipse((0, 0, D - 1, D - 1), fill=255)
+    silver = _gradient((D, D), (238, 240, 244), (150, 155, 165)).convert("RGBA")
+    out.paste(silver, (0, 0), ring)
+    label_r = 0.94 * c
+    label = _screen_picture(image, system, (round(2 * label_r), round(2 * label_r)), S).convert("RGBA")
+    lmask = Image.new("L", label.size, 0)
+    ImageDraw.Draw(lmask).ellipse((0, 0, label.width - 1, label.height - 1), fill=255)
+    hub = 0.36 * c
+    ImageDraw.Draw(lmask).ellipse((label_r - hub, label_r - hub, label_r + hub, label_r + hub), fill=0)
+    out.paste(label, (round(c - label_r), round(c - label_r)), lmask)
+    d2 = ImageDraw.Draw(out)
+    d2.ellipse((c - hub, c - hub, c + hub, c + hub), fill=(205, 210, 218, 255))         # the clear plastic hub
+    d2.ellipse((c - 0.3 * c, c - 0.3 * c, c + 0.3 * c, c + 0.3 * c), outline=(170, 175, 185, 255), width=S)
+    hole = 0.125 * c
+    d2.ellipse((c - hole, c - hole, c + hole, c + hole), fill=(0, 0, 0, 0))
+    gloss = Image.new("L", (D, D), 0)                    # a soft sheen across the disc
+    ImageDraw.Draw(gloss).polygon([(0, D * 0.25), (D * 0.25, 0), (D * 0.55, 0), (0, D * 0.55)], fill=70)
+    gloss = ImageChops.multiply(gloss, ring)
+    out.paste((255, 255, 255, 255), (0, 0), gloss)
     return out.reduce(S)
+
+
+def _cover(cover, size, S):
+    """The cover art filling `size` (at S x): cropped a little if its shape is close, else fitted on a blurred,
+    darkened copy of itself."""
+    from PIL import Image, ImageEnhance, ImageFilter
+    img = (cover if hasattr(cover, "size") else Image.open(cover)).convert("RGB")
+    w, h = size
+    if abs((img.width / img.height) / (w / h) - 1) <= 0.12:
+        return fit_image(img, size, "cover")
+    back = ImageEnhance.Brightness(fit_image(img, size, "cover").filter(ImageFilter.GaussianBlur(4 * S))).enhance(0.5)
+    front = img.resize((max(1, round(img.width * min(w / img.width, h / img.height))),
+                        max(1, round(img.height * min(w / img.width, h / img.height)))), Image.LANCZOS)
+    back.paste(front, ((w - front.width) // 2, (h - front.height) // 2))
+    return back
+
+
+def cd_case_layers(image, cover, title, year, system, font_file=None, plate_style="nsui"):
+    """The "CD case" banner as layers, back to front: the disc (the title screen printed on it) sliding out of the
+    case, the case with the game's cover (its box art, or the title screen when there's none), and the title plate."""
+    from PIL import Image, ImageDraw
+    S = 4
+    art = cover or image
+    if art:
+        a = art if hasattr(art, "size") else Image.open(art)
+        shape = min(max(a.width / a.height, CASE_SHAPES[0]), CASE_SHAPES[1])
+    else:
+        shape = CASE_SHAPES[1]
+    ax0, ay0, ax1, ay1 = CASE_AREA
+    ch = ay1 - ay0
+    cw = round(ch * shape)
+    d = round(ch * 0.9)                                  # the disc is a little smaller than the case is tall
+    peek = round(d * 0.42)                               # how much of the disc shows beside the case
+    left = round((ax0 + ax1) / 2 - (cw + peek) / 2)
+    case_quad = (left, ay0, left + cw, ay1)
+    disc_top = round((ay0 + ay1) / 2 - d / 2)
+    disc_quad = (left + cw + peek - d, disc_top, left + cw + peek, disc_top + d)
+    disc = _disc(image, system, d, S)
+
+    W, H = cw * S, ch * S
+    case = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    dc = ImageDraw.Draw(case)
+    dc.rounded_rectangle((0, 0, W - 1, H - 1), 3 * S, fill=(222, 226, 232, 255))          # clear plastic, seen edge on
+    dc.rounded_rectangle((S, S, W - 1 - S, H - 1 - S), 2.5 * S, fill=(196, 202, 210, 255))
+    hinge = round(max(6, cw * 0.075) * S)                  # the hinge down the left side, with its ridges
+    dc.rectangle((S, S, hinge, H - 1 - S), fill=(176, 182, 192, 255))
+    for y in range(3 * S, H - 3 * S, 3 * S):
+        dc.line((2 * S, y, hinge - S, y), fill=(150, 156, 166, 255), width=S)
+    inset = (hinge + S, 2 * S, W - 2 * S, H - 2 * S)
+    if art:
+        insert = _cover(art, (inset[2] - inset[0], inset[3] - inset[1]), S)
+    else:
+        insert = _screen_picture(None, system, (inset[2] - inset[0], inset[3] - inset[1]), S)
+    case.paste(insert.convert("RGBA"), inset[:2])
+    sheen = Image.new("L", (W, H), 0)                       # light on the plastic lid
+    ImageDraw.Draw(sheen).polygon([(inset[0], inset[1]), (inset[0] + W * 0.45, inset[1]),
+                                   (inset[0] + W * 0.15, inset[3]), (inset[0], inset[3])], fill=34)
+    case.paste((255, 255, 255, 255), (0, 0), sheen)
+    dc.rectangle(inset, outline=(240, 243, 247, 255), width=S)
+    case = case.reduce(S)
+
+    shadow = Image.new("RGBA", disc.size, (0, 0, 0, 0))    # the case's shadow on the disc beside it
+    edge = case_quad[2] - disc_quad[0]
+    for k in range(6):
+        ImageDraw.Draw(shadow).line((edge + k, 0, edge + k, d), fill=(0, 0, 0, round(70 * (1 - k / 6))))
+    disc.alpha_composite(Image.composite(shadow, Image.new("RGBA", disc.size), disc.getchannel("A")))
+
+    return [(disc, disc_quad, DISC_DEPTH), (case, case_quad, CASE_DEPTH),
+            plate_layer(title, year, font_file, plate_style)]
+
+
+def flatten(layers):
+    """The layers as they look on the top screen, as one BANNER_QUAD-sized picture (for the preview)."""
+    from PIL import Image
+    qx, qy = BANNER_QUAD[:2]
+    out = Image.new("RGBA", (BANNER_QUAD[2] - qx, BANNER_QUAD[3] - qy), (0, 0, 0, 0))
+    for img, quad, _depth in layers:
+        piece = img.convert("RGBA")
+        if piece.size != (quad[2] - quad[0], quad[3] - quad[1]):
+            piece = piece.resize((quad[2] - quad[0], quad[3] - quad[1]), Image.LANCZOS)
+        out.alpha_composite(piece, (quad[0] - qx, quad[1] - qy))
+    return out
+
+
+def draw_vc_banner(image, title, year, system, color=None, font_file=None, plate_style="nsui"):
+    """The frame banner as one 256 x 192 picture (the BANNER_QUAD part of the top screen), for the preview."""
+    return flatten(frame_layers(image, title, year, system, color, font_file, plate_style))
 
 
 def read_smdh_icon(path):
@@ -481,9 +645,10 @@ def check_sound(path):
 CUSTOM_QUAD = (70, 75, 330, 205)
 
 
-def _run_makebanner(image, quad, sound, out_bnr, workdir):
+def _run_makebanner(image, quad, sound, out_bnr, workdir, layers=None):
     """bannertool makes the banner file and its sound; its model then gets `image` in full colour on `quad` (see
-    model3d.flat_banner_model). bannertool runs inside `workdir` with plain relative names (see resources.run_tool)."""
+    model3d.flat_banner_model), or the pictures of `layers` at their depths (see model3d.layered_banner_model).
+    bannertool runs inside `workdir` with plain relative names (see resources.run_tool)."""
     from PIL import Image
     workdir = Path(workdir)
     Image.new("RGBA", (256, 128), (0, 0, 0, 0)).save(workdir / "banner.png")      # replaced below
@@ -499,22 +664,32 @@ def _run_makebanner(image, quad, sound, out_bnr, workdir):
     run_tool(cmd, cwd=workdir)
     data = (workdir / out_name).read_bytes()
     start, end = cgfx.cbmd_common(data)
-    model = model3d.flat_banner_model(cgfx.lz11_decompress(data[start:end]), image, quad)
+    base = cgfx.lz11_decompress(data[start:end])
+    model = model3d.layered_banner_model(base, layers) if layers else model3d.flat_banner_model(base, image, quad)
     Path(out_bnr).write_bytes(cgfx.cbmd_replace_common(data, model))
 
 
-def make_banner(image, title, year, system, sound, out_bnr, workdir, style="vc", color=None, font_file=None,
-                plate_style="nsui"):
-    """style: 'vc' draws the coloured frame + Virtual Console plate (default);
-    'custom' uses `image` as the whole banner picture, unmodified."""
+BANNER_STYLES = ("frame", "cdcase")
+
+
+def make_banner(image, title, year, system, sound, out_bnr, workdir, style="frame", color=None, font_file=None,
+                plate_style="nsui", cover=None):
+    """style: 'frame' draws the coloured frame and the Virtual Console plate (default), 'cdcase' the game's cover in
+    a CD case with its disc (cover: the box art; the picture is used when there's none), both in layers at different
+    depths; 'custom' uses `image` as the whole banner picture, unmodified. Returns the banner as it looks on the
+    top screen."""
     if style == "custom":
         if not image:
             raise ValueError("Choose a banner image, or switch to the Virtual Console banner style.")
-        img, quad = draw_custom_banner(image), CUSTOM_QUAD
+        img = draw_custom_banner(image)
+        _run_makebanner(img, CUSTOM_QUAD, sound, out_bnr, workdir)
+        return img
+    if style == "cdcase":
+        layers = cd_case_layers(image, cover, title, year, system, font_file, plate_style)
     else:
-        img, quad = draw_vc_banner(image, title, year, system, color, font_file, plate_style), BANNER_QUAD
-    _run_makebanner(img, quad, sound, out_bnr, workdir)
-    return img
+        layers = frame_layers(image, title, year, system, color, font_file, plate_style)
+    _run_makebanner(None, None, sound, out_bnr, workdir, layers)
+    return flatten(layers)
 
 
 def on_screen(img, quad, size):

@@ -36,6 +36,8 @@ class BuildOptions:
     icon_file: Path = None            # optional ready-made .icn / .smdh, or a picture
     banner_file: Path = None          # optional ready-made .bnr, or a picture
     frame_color: tuple = None         # (r, g, b) of the banner's frame; None = the system's own colour
+    banner_style: str = "frame"       # the app's own banner: "frame" or "cdcase" (see banner.make_banner)
+    cover: Path = None                # the game's box art, for the CD case banner (None: found, or the picture)
     sound_file: Path = None           # optional .wav / .bcwav banner sound
     plate_font: Path = None           # optional font file for the title plate's text
     plate_style: str = "nsui"         # the plate's text laid out as NSUI does ("nsui") or as Nintendo does ("official")
@@ -204,8 +206,9 @@ def _check_picture(path, what):
 def preflight(opt: BuildOptions):
     """Check every extra file (pictures, ready-made banner and icon, sound, font) before any work is done, so a bad
     one is reported at once and not after the game has been copied."""
-    for path, what in ((opt.image, "picture"), (opt.icon_file, "icon picture"), (opt.banner_file, "banner picture")):
-        if path and (what == "picture" or is_picture(path)):
+    for path, what in ((opt.image, "picture"), (opt.cover, "cover picture"), (opt.icon_file, "icon picture"),
+                       (opt.banner_file, "banner picture")):
+        if path and (what in ("picture", "cover picture") or is_picture(path)):
             _check_picture(path, what)
     if opt.icon_file and not is_picture(opt.icon_file):
         _read_ready_made(opt.icon_file, b"SMDH", "icon")
@@ -220,6 +223,8 @@ def preflight(opt: BuildOptions):
             bn.check_sound(opt.sound_file)
         except bn.SoundError as e:
             raise BuildError(str(e))
+    if opt.banner_style not in bn.BANNER_STYLES:
+        raise BuildError(f"The banner style must be one of: {', '.join(bn.BANNER_STYLES)}.")
     if opt.plate_style not in bn.PLATE_STYLES:
         raise BuildError(f"The plate text style must be one of: {', '.join(bn.PLATE_STYLES)}.")
     if opt.plate_font and not Path(opt.plate_font).is_file():
@@ -256,6 +261,19 @@ def fill_in(opt: BuildOptions, disc, system):
             except download.DownloadError as e:
                 opt.info["picture_note"] = str(e)
         opt.info["picture"] = opt.image
+    if opt.banner_style == "cdcase" and not opt.cover and not opt.banner_file and not opt.nsui_program:
+        try:
+            opt.cover = gameinfo.find_picture(system, [found.name, disc.cue.stem],
+                                              gameinfo.thumbnail_folders(opt.pictures_dir), gameinfo.COVER_KINDS)
+        except OSError:
+            opt.cover = None
+        if not opt.cover and opt.download_picture and found.name:
+            from . import download
+            try:
+                opt.cover = download.download_picture(system, found.name, kinds=gameinfo.COVER_KINDS)
+            except download.DownloadError:
+                opt.cover = None
+        opt.info["cover"] = opt.cover
 
 
 def build(opt: BuildOptions, progress=lambda frac, msg: None) -> Path:
@@ -367,9 +385,11 @@ def build(opt: BuildOptions, progress=lambda frac, msg: None) -> Path:
                     opt.info["banner_kind"] = "your banner picture"
                 else:
                     opt.info["banner"] = bn.make_banner(opt.image, title, year, system, opt.sound_file, banner, tmp,
-                                                        color=color, font_file=opt.plate_font,
-                                                        plate_style=opt.plate_style)
-                    opt.info["banner_kind"] = "title screen in a coloured frame"
+                                                        style=opt.banner_style, color=color,
+                                                        font_file=opt.plate_font, plate_style=opt.plate_style,
+                                                        cover=opt.cover)
+                    opt.info["banner_kind"] = ("the cover and disc in a CD case" if opt.banner_style == "cdcase"
+                                               else "title screen in a coloured frame")
             except PICTURE_ERRORS as e:
                 raise BuildError(f"Couldn't make the banner: {e}")
             except bn.SoundError as e:

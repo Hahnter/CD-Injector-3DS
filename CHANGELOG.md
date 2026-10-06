@@ -14,6 +14,15 @@
   the app goes online, and each picture is downloaded once and kept with the app's settings. A game whose picture
   libretro keeps under a slightly different name ("Sonic The Hedgehog CD", or "Dune (USA)" for a disc called
   "Dune (USA) (En,Fr,De,Es,It)") is found too.
+- **New banners that stand out in 3D, with no NSUI needed.** The app's own banners are now made of layers at
+  different depths, like NSUI's 3D banners: with the 3D slider up, the plate floats in front and the picture sits
+  behind it.
+  - **Frame** (the default): your picture set a little behind a colored frame, with a soft shadow along its top edge,
+    and a face that's a little lighter at the top.
+  - **CD case** (new): the game's cover in a CD case, with the disc sliding out and the title screen printed on it.
+    The case is square for jewel-case covers and taller for American Sega CD long cases. The cover is the game's box
+    art, found or downloaded like the picture (**Cover** in the window, `--banner-style cdcase` and `--cover` on the
+    command line).
 - **Official-style plate text (More options > Plate text).** The title and year can now be laid out like Nintendo's
   own Virtual Console banners, measured from them: one line of 12-pixel capitals (squeezed a little rather than
   shrunk when it's long), or two lines of 10-pixel capitals split after a colon, "Released: year" spaced out, and

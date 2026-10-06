@@ -11,7 +11,7 @@ from PIL import Image as _Image
 
 from . import cgfx, model3d
 from .model3d import BACKGROUND
-from .resources import font_path, font_path_rounded, run_tool, tool
+from .resources import font_path, font_path_rounded, official_font, run_tool, tool
 
 # Pictures come from the user. Anything over about 50 million pixels is refused as a possible decompression bomb
 # (a small file that unpacks to gigabytes); a title screen or box art is far smaller.
@@ -194,9 +194,99 @@ def plate_title_layout(title, S=1, font_file=None):
                for t in lines]
 
 
-def plate_text(title, year, S=4, font_file=None):
-    """The title and "Released: <year>" in the plate's ink on a transparent 256 x 64 (x S) layer."""
+# Nintendo's own plates, measured from official Virtual Console banners: a title that fits on one line has capitals
+# 12 px tall on baseline 29, with "Released: <year>" under it in 11 px capitals on baseline 47; a longer title takes
+# two lines of 10 px capitals on baselines 21 and 37, with the year line in 10 px capitals on baseline 52. A line
+# that's too wide is squeezed rather than made smaller, and the year line is spaced out ("Released: 1999" is 130 px
+# wide at 11 px). The ink is a softer gray than NSUI's.
+OFFICIAL_ONE_LINE = (((12, 29),), (11, 47))            # ((cap height, baseline) of each title line), year line
+OFFICIAL_TWO_LINES = (((10, 21), (10, 37)), (10, 52))
+OFFICIAL_YEAR_WIDTH = 130 / 11                         # the width of "Released: 1999" per pixel of cap height
+OFFICIAL_INK = (50, 50, 50, 255)
+OFFICIAL_SQUEEZE = 0.8                                 # how far a one-line title is squeezed before it takes two
+PLATE_STYLES = ("nsui", "official")
+
+
+def _font_for_caps(cap, font_file):
+    """The plate font at the size whose capitals are `cap` pixels tall (whatever the font's proportions)."""
+    f = _font(100, True, font_file)
+    return _font(cap * 100 / max(1, -f.getbbox("H", anchor="ls")[1]), True, font_file)
+
+
+def _line_mask(text, font, tracking=0.0):
+    """(mask, baseline, width) of one line of text: its ink as an L picture, the baseline's height in it and the
+    line's advance width. `tracking` is extra space after each character but the last."""
     from PIL import Image, ImageDraw
+    size = max(1, round(font.size))
+    advances = [font.getlength(ch) for ch in text] if tracking else [font.getlength(text)]
+    width = sum(advances) + tracking * max(0, len(text) - 1)
+    mask = Image.new("L", (round(width) + 2 * size, 2 * size), 0)
+    d = ImageDraw.Draw(mask)
+    base = round(1.4 * size)
+    if tracking:
+        x = size
+        for ch, adv in zip(text, advances):
+            d.text((x, base), ch, font=font, fill=255, anchor="ls")
+            x += adv + tracking
+    else:
+        d.text((size, base), text, font=font, fill=255, anchor="ls")
+    return mask.crop((size, 0, size + max(1, round(width)), mask.height)), base, width
+
+
+def _two_lines(words, measure):
+    """The title split in two the way Nintendo's plates do it: after a colon if there is one; otherwise the split
+    whose wider line is narrowest, the second line not narrower than the first if that can be."""
+    for i in range(1, len(words)):
+        if words[i - 1].endswith(":"):
+            return [" ".join(words[:i]), " ".join(words[i:])]
+    splits = [([" ".join(words[:i]), " ".join(words[i:])]) for i in range(1, len(words))]
+    if not splits:
+        return [" ".join(words)]
+    bottom_heavy = [s for s in splits if measure(s[1]) >= measure(s[0])]
+    return min(bottom_heavy or splits, key=lambda s: max(measure(s[0]), measure(s[1])))
+
+
+def official_text(title, year, S=4, font_file=None):
+    """The title and "Released: <year>" laid out as on Nintendo's own Virtual Console plates (see OFFICIAL_ONE_LINE),
+    on a transparent 256 x 64 (x S) layer. With no font chosen, the bundled look-alike of Nintendo's Rodin is used."""
+    from PIL import Image
+    font_file = font_file or official_font()
+    layer = Image.new("RGBA", (256 * S, 64 * S), (0, 0, 0, 0))
+    width = PLATE_TEXT_W * S
+
+    def place(text, cap, baseline, tracking_for=None):
+        f = _font_for_caps(cap * S, font_file)
+        tracking = 0.0
+        if tracking_for:                                # spaced out like Nintendo's "Released: 1999"
+            natural = f.getlength(tracking_for)
+            tracking = max(0.0, (OFFICIAL_YEAR_WIDTH * cap * S - natural) / max(1, len(tracking_for) - 1))
+        mask, base, w = _line_mask(text, f, tracking)
+        if w > width:                                   # too wide: squeezed, as Nintendo does
+            mask = mask.resize((round(width), mask.height), Image.LANCZOS)
+            w = width
+        layer.paste(OFFICIAL_INK, (round(PLATE_TEXT_X * S - w / 2), round(baseline * S - base)), mask)
+
+    words = title.split()
+    one = _font_for_caps(12 * S, font_file)
+    if not words or one.getlength(title.strip()) * OFFICIAL_SQUEEZE <= width:
+        lines, (titles, (year_cap, year_base)) = [" ".join(words)], OFFICIAL_ONE_LINE
+    else:
+        two = _font_for_caps(10 * S, font_file)
+        lines = _two_lines(words, two.getlength)
+        titles, (year_cap, year_base) = OFFICIAL_TWO_LINES
+    for text, (cap, baseline) in zip(lines, titles):
+        if text:
+            place(text, cap, baseline)
+    place("Released: " + (year or "Unknown"), year_cap, year_base, tracking_for="Released: 1999")
+    return layer
+
+
+def plate_text(title, year, S=4, font_file=None, style="nsui"):
+    """The title and "Released: <year>" in the plate's ink on a transparent 256 x 64 (x S) layer, laid out as NSUI
+    does it, or with style="official" as on Nintendo's own plates (see official_text)."""
+    from PIL import Image, ImageDraw
+    if style == "official":
+        return official_text(title, year, S, font_file)
     layer = Image.new("RGBA", (256 * S, 64 * S), (0, 0, 0, 0))
     d = ImageDraw.Draw(layer)
     f, lines = plate_title_layout(title, S, font_file)
@@ -211,12 +301,13 @@ def plate_text(title, year, S=4, font_file=None):
     return layer
 
 
-def draw_plate(title, year, S=4, font_file=None):
+def draw_plate(title, year, S=4, font_file=None, style="nsui"):
     """The Virtual Console title plate, 256 x 64 units drawn at S x: the gray badge with the slanted "Virtual Console"
-    lettering on the left, the game's title (up to three lines) and "Released: <year>" beside it.
-    font_file: a font for the title and year (Arial Bold when None, as NSUI uses)."""
+    lettering on the left, the game's title and "Released: <year>" beside it, laid out as NSUI does it or (style=
+    "official") as on Nintendo's own plates. font_file: a font for the title and year (Arial Bold when None, as NSUI
+    uses)."""
     plate = _plate_body(S)
-    plate.alpha_composite(plate_text(title, year, S, font_file))
+    plate.alpha_composite(plate_text(title, year, S, font_file, style))
     return plate
 
 
@@ -256,7 +347,7 @@ def frame_palette(color):
     return body, edge, line, bezel
 
 
-def draw_vc_banner(image, title, year, system, color=None, font_file=None):
+def draw_vc_banner(image, title, year, system, color=None, font_file=None, plate_style="nsui"):
     """The banner picture, 256 x 192 (the BANNER_QUAD part of the top screen): the game's title screen in a frame of
     the chosen colour with the Virtual Console title plate below, laid out like NSUI's frame banners.
     color: (r, g, b), or None for the system's own colour."""
@@ -295,7 +386,7 @@ def draw_vc_banner(image, title, year, system, color=None, font_file=None):
     out.paste(screen.convert("RGBA"), (x0, y0), _rounded_mask(size, (0, 0, size[0] - 1, size[1] - 1), 3 * S))
 
     px0, py0, px1, py1 = box(PLATE_BOX)
-    out.alpha_composite(draw_plate(title, year, S, font_file).resize((px1 - px0 + 1, py1 - py0 + 1), Image.LANCZOS),
+    out.alpha_composite(draw_plate(title, year, S, font_file, plate_style).resize((px1 - px0 + 1, py1 - py0 + 1), Image.LANCZOS),
                         (px0, py0))
     return out.reduce(S)
 
@@ -412,7 +503,8 @@ def _run_makebanner(image, quad, sound, out_bnr, workdir):
     Path(out_bnr).write_bytes(cgfx.cbmd_replace_common(data, model))
 
 
-def make_banner(image, title, year, system, sound, out_bnr, workdir, style="vc", color=None, font_file=None):
+def make_banner(image, title, year, system, sound, out_bnr, workdir, style="vc", color=None, font_file=None,
+                plate_style="nsui"):
     """style: 'vc' draws the coloured frame + Virtual Console plate (default);
     'custom' uses `image` as the whole banner picture, unmodified."""
     if style == "custom":
@@ -420,7 +512,7 @@ def make_banner(image, title, year, system, sound, out_bnr, workdir, style="vc",
             raise ValueError("Choose a banner image, or switch to the Virtual Console banner style.")
         img, quad = draw_custom_banner(image), CUSTOM_QUAD
     else:
-        img, quad = draw_vc_banner(image, title, year, system, color, font_file), BANNER_QUAD
+        img, quad = draw_vc_banner(image, title, year, system, color, font_file, plate_style), BANNER_QUAD
     _run_makebanner(img, quad, sound, out_bnr, workdir)
     return img
 

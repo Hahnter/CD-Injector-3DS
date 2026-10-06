@@ -14,6 +14,11 @@
   the app goes online, and each picture is downloaded once and kept with the app's settings. A game whose picture
   libretro keeps under a slightly different name ("Sonic The Hedgehog CD", or "Dune (USA)" for a disc called
   "Dune (USA) (En,Fr,De,Es,It)") is found too.
+- **Official-style plate text (More options > Plate text).** The title and year can now be laid out like Nintendo's
+  own Virtual Console banners, measured from them: one line of 12-pixel capitals (squeezed a little rather than
+  shrunk when it's long), or two lines of 10-pixel capitals split after a colon, "Released: year" spaced out, and
+  Nintendo's softer gray ink. It uses M PLUS 1p Bold, a free look-alike of Nintendo's Rodin that comes with the app,
+  or a font you choose. NSUI style stays the default (`--plate-style official` on the command line).
 - **NSUI's banners straight from NSUI.** Point the app at your copy of NSUI once (**From NSUI > Make**, or `--nsui`
   on the command line) and it makes NSUI's 3D banners from the parts inside NSUI's program, the way NSUI does: the
   Genesis for Sega CD games; the PC Engine, the TurboGrafx-16, or both by region (PC Engine on Japanese 3DS systems)

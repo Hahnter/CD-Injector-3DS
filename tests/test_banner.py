@@ -94,6 +94,49 @@ class PlateTests(unittest.TestCase):
         self.assertAlmostEqual(lum.getpixel((11, 30)), 140, delta=1)         # the badge
 
 
+def ink_lines(layer):
+    """(top row, bottom row, left, right) of each line of ink on a plate text layer at 1x."""
+    a = layer.getchannel("A").point(lambda v: 255 if v > 128 else 0)
+    rows = [a.crop((0, y, 256, y + 1)).getbbox() for y in range(64)]
+    out, run = [], None
+    for y, r in enumerate(rows + [None]):
+        if r and run is None:
+            run = [y, y, r[0], r[2]]
+        elif r:
+            run = [run[0], y, min(run[2], r[0]), max(run[3], r[2])]
+        elif run:
+            out.append(tuple(run))
+            run = None
+    return out
+
+
+class OfficialPlateTests(unittest.TestCase):
+    """The plate's text laid out as on Nintendo's own Virtual Console banners (measured from official ones)."""
+
+    def test_a_short_title_takes_one_line(self):
+        (t0, t1, _, _), (y0, y1, yl, yr) = ink_lines(bn.official_text("EarthBound", "1995", S=4).reduce(4))
+        self.assertEqual((t0, t1), (17, 28))                      # 12 px capitals on baseline 29
+        self.assertEqual((y0, y1), (36, 46))                      # 11 px capitals on baseline 47
+        self.assertAlmostEqual(yr - yl, 130, delta=3)             # "Released: 1995" spaced out to Nintendo's width
+
+    def test_a_long_title_takes_two_smaller_lines(self):
+        lines = ink_lines(bn.official_text("The Legend of Xanadu: Part II", "1994", S=4).reduce(4))
+        self.assertEqual([a for a, _, _, _ in lines], [11, 27, 42])         # 10 px capitals on baselines 21, 37, 52
+        self.assertEqual((lines[1][1], lines[2][1]), (36, 51))
+        for _, _, left, right in lines:
+            self.assertLessEqual(right - left, bn.PLATE_TEXT_W)
+
+    def test_titles_split_like_nintendos(self):
+        split = lambda t: bn._two_lines(t.split(), len)                                  # noqa: E731
+        self.assertEqual(split("DOUBLE DRAGON II: The Revenge"), ["DOUBLE DRAGON II:", "The Revenge"])
+        self.assertEqual(split("The Mysterious Murasame Castle"), ["The Mysterious", "Murasame Castle"])
+        self.assertEqual(split("Pokémon Puzzle Challenge"), ["Pokémon", "Puzzle Challenge"])
+
+    def test_a_very_long_line_is_squeezed_to_fit(self):
+        for _, _, left, right in ink_lines(bn.official_text("Super Long Title " * 4, "", S=4).reduce(4)):
+            self.assertLessEqual(right - left, bn.PLATE_TEXT_W)
+
+
 class IconTests(unittest.TestCase):
     def test_the_icon_has_nsuis_silver_border(self):
         for picture in (None, a_picture()):

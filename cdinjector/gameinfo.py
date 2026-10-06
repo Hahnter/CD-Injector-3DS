@@ -18,10 +18,15 @@ from pathlib import Path
 
 from . import APP_NAME
 from .gamelist import DISCS
+from .thumbnail_names import NAMES as THUMBNAIL_NAMES
 
 THUMBNAIL_SYSTEMS = {"pce": "NEC - PC Engine CD - TurboGrafx-CD", "segacd": "Sega - Mega-CD - Sega CD"}
 THUMBNAIL_KINDS = ("Named_Titles", "Named_Snaps", "Named_Boxarts")      # title screen first, box art last
 PICTURE_TYPES = (".png", ".jpg", ".jpeg")
+# notes after the region in a Redump name that a game's picture is usually kept without: its languages
+# "(En,Fr,De)", a revision "(Rev 2)", "(Alt)", "(Rerelease)", "(Beta)" and so on
+NOTES = re.compile(r"\s*\((?:(?:[A-Z][a-z](?:-[A-Z][a-z])?,)*[A-Z][a-z](?:-[A-Z][a-z])?|Rev [^)]*|Alt[^)]*|Rerelease"
+                   r"|Beta[^)]*|Proto[^)]*|Demo[^)]*)\)")
 
 
 @dataclass
@@ -182,10 +187,30 @@ def thumbnail_file_name(name):
     return re.sub(r'[&*/:`<>?\\|"]', "_", name)
 
 
+def name_variants(name):
+    """`name` and the same name without its language, revision and similar notes, which libretro's pictures are
+    usually kept without: "Dune (USA) (En,Fr,De,Es,It)" -> also "Dune (USA)"."""
+    plain = NOTES.sub("", name).strip()
+    return [name] + ([plain] if plain and plain != name else [])
+
+
+def picture_names(system, names):
+    """The names to look for a picture under, best first: for each of `names`, the one libretro's thumbnails use if
+    it differs (see thumbnail_names.py), then the name itself and its variants."""
+    out = []
+    for n in names:
+        if not n:
+            continue
+        for v in [THUMBNAIL_NAMES.get(system, {}).get(n, "")] + name_variants(n):
+            if v and v not in out:
+                out.append(v)
+    return out
+
+
 def find_picture(system, names, folders):
     """The first picture for any of `names` (a title screen if there is one, then a screenshot, then box art) in
     the thumbnail folders, laid out as RetroArch does (<folder>/<system>/Named_Titles/<name>.png) or flat."""
-    names = [thumbnail_file_name(n) for n in names if n]
+    names = [thumbnail_file_name(n) for n in picture_names(system, names)]
     sub = THUMBNAIL_SYSTEMS.get(system, "")
     for folder in folders:
         folder = Path(folder)

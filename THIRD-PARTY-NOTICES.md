@@ -29,6 +29,10 @@ Nintendo, Sega or NEC.
 - MAME's software lists (`hash/pcecd.xml`, `hash/megacd.xml`), <https://github.com/mamedev/mame>: each disc's title,
   publisher and year. Released under CC0 1.0 (public domain).
 
+`cdinjector/thumbnail_names.py`, made by `scripts/make_thumbnail_names.py`, lists the few discs whose picture
+libretro's thumbnails (<https://github.com/libretro-thumbnails>) keep under a slightly different name: only file
+names, no pictures.
+
 ## Emulators inside every CIA
 
 ### emus3ds (TemperPCE for 3DS, PicoDrive for 3DS front end)

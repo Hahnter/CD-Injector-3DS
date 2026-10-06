@@ -188,6 +188,26 @@ class DownloadTests(unittest.TestCase):
             self.assertEqual(got.parent.name, "Named_Boxarts")
             self.assertIsNone(download.download_picture("segacd", "Not A Game", t, opener=FakeServer({})))
 
+    def test_a_picture_kept_under_another_name(self):
+        """libretro keeps some pictures under a name with another capital letter, or without the disc's notes."""
+        sonic = download.picture_url("segacd", "Named_Titles", "Sonic The Hedgehog CD (Japan)")
+        dune = download.picture_url("segacd", "Named_Boxarts", "Dune (USA)")
+        with tempfile.TemporaryDirectory() as t:
+            server = FakeServer({sonic: a_png(), dune: a_png()})
+            got = download.download_picture("segacd", "Sonic the Hedgehog CD (Japan)", t, opener=server)
+            self.assertEqual(got.name, "Sonic The Hedgehog CD (Japan).png")
+            self.assertEqual(server.asked, [sonic])
+            got = download.download_picture("segacd", "Dune (USA) (En,Fr,De,Es,It)", t, opener=server)
+            self.assertEqual((got.parent.name, got.name), ("Named_Boxarts", "Dune (USA).png"))
+            self.assertEqual(gi.find_picture("segacd", ["Dune (USA) (En,Fr,De,Es,It)"], [t]), got)    # and offline
+
+    def test_name_variants(self):
+        self.assertEqual(gi.name_variants("Shin Megami Tensei (Japan) (Rev 2)"),
+                         ["Shin Megami Tensei (Japan) (Rev 2)", "Shin Megami Tensei (Japan)"])
+        self.assertEqual(gi.name_variants("Supreme Warrior (USA) (Disc 1) (Fire & Earth) (Alt)")[1],
+                         "Supreme Warrior (USA) (Disc 1) (Fire & Earth)")
+        self.assertEqual(gi.name_variants("Lunar - The Silver Star (Japan)"), ["Lunar - The Silver Star (Japan)"])
+
     def test_bad_downloads_are_refused(self):
         url = download.picture_url("pce", "Named_Titles", self.name)
         with tempfile.TemporaryDirectory() as t:

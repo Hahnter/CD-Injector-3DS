@@ -12,7 +12,7 @@ from pathlib import Path
 from PIL import Image
 
 from . import banner as bn
-from . import nsui
+from . import gameinfo, nsui
 from .bios import BiosError, find_bios
 from .disc import CUE_FILE, SYSTEMS, DiscError, read_cue
 from .resources import core_dir, run_tool, tool
@@ -38,6 +38,8 @@ class BuildOptions:
     frame_color: tuple = None         # (r, g, b) of the banner's frame; None = the system's own colour
     sound_file: Path = None           # optional .wav / .bcwav banner sound
     plate_font: Path = None           # optional font file for the title plate's text
+    lookup: bool = False              # fill in an empty title, publisher, year and picture when the disc is recognised
+    pictures_dir: Path = None         # where to look for the picture (None: RetroArch's thumbnails, if found)
     info: dict = field(default_factory=dict)
 
 
@@ -218,9 +220,31 @@ def preflight(opt: BuildOptions):
         raise BuildError("The title plate font was not found:" + chr(10) + str(opt.plate_font))
 
 
+def fill_in(opt: BuildOptions, disc, system):
+    """Fill in whatever of the title, publisher, year and picture is empty, from what the disc is recognised as (see
+    gameinfo). What was given is never replaced."""
+    try:
+        found = gameinfo.identify(disc, system)
+    except (OSError, ValueError):
+        found = gameinfo.GameInfo()
+    opt.info["recognised"] = found.name
+    opt.title = opt.title or found.title
+    opt.publisher = opt.publisher or found.publisher
+    opt.year = opt.year or found.year
+    if not opt.image:
+        try:
+            opt.image = gameinfo.find_picture(system, [found.name, disc.cue.stem],
+                                              gameinfo.thumbnail_folders(opt.pictures_dir))
+        except OSError:
+            opt.image = None
+        opt.info["picture"] = opt.image
+
+
 def build(opt: BuildOptions, progress=lambda frac, msg: None) -> Path:
     progress(0.01, "Checking game and BIOS…")
     disc, system, bios_files, bios_notes = check(opt)
+    if opt.lookup:
+        fill_in(opt, disc, system)
     preflight(opt)
     info = SYSTEMS[system]
     title = printable(opt.title or clean_title(disc.cue.stem)) or "Game"

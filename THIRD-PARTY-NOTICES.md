@@ -20,6 +20,15 @@ Nintendo, Sega or NEC.
 
 **bannertool's banner model.** The banner's 3D model is the one bannertool (MIT, see below) writes; the app only enlarges its picture and stores it in full color. `tests/data/bannertool-banner-model.cgfx` is a copy of that model for the tests, with bannertool's license next to it.
 
+**The list of games.** `cdinjector/gamelist.py`, which the app uses to recognise discs, is made by
+`scripts/make_game_list.py` from two public lists, and is shared under CC BY-SA 4.0:
+
+- libretro-database, <https://github.com/libretro/libretro-database>: each disc's name, region, serial and the size
+  and CRC-32 of its data track, from Redump's verified dumps. Licensed under the Creative Commons
+  Attribution-ShareAlike 4.0 International License (<https://creativecommons.org/licenses/by-sa/4.0/>).
+- MAME's software lists (`hash/pcecd.xml`, `hash/megacd.xml`), <https://github.com/mamedev/mame>: each disc's title,
+  publisher and year. Released under CC0 1.0 (public domain).
+
 ## Emulators inside every CIA
 
 ### emus3ds (TemperPCE for 3DS, PicoDrive for 3DS front end)

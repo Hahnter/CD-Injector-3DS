@@ -123,6 +123,18 @@ class PictureTests(unittest.TestCase):
             got = gi.find_picture("pce", ["Game: The Sequel (Japan)"], [t])
             self.assertEqual(got, base / "Named_Titles" / "Game_ The Sequel (Japan).png")
 
+    def test_the_box_art_alone_for_the_cover(self):
+        with tempfile.TemporaryDirectory() as t:
+            base = Path(t) / gi.THUMBNAIL_SYSTEMS["pce"]
+            for kind in ("Named_Titles", "Named_Boxarts"):
+                (base / kind).mkdir(parents=True)
+                (base / kind / "Game (Japan).png").write_bytes(b"png")
+            (Path(t) / "Game (Japan).png").write_bytes(b"png")
+            self.assertEqual(gi.find_picture("pce", ["Game (Japan)"], [t], gi.COVER_KINDS),
+                             base / "Named_Boxarts" / "Game (Japan).png")
+            (base / "Named_Boxarts" / "Game (Japan).png").unlink()
+            self.assertIsNone(gi.find_picture("pce", ["Game (Japan)"], [t], gi.COVER_KINDS))   # never the title
+
     def test_a_flat_folder_of_pictures(self):
         with tempfile.TemporaryDirectory() as t:
             (Path(t) / "My Game.jpg").write_bytes(b"jpg")
@@ -138,6 +150,19 @@ class FillInTests(unittest.TestCase):
             fill_in(opt, d, "segacd")
             self.assertEqual((opt.title, opt.publisher, opt.year), ("My Own Title", "Sega", "1993"))
             self.assertEqual(opt.info["recognised"], "Sonic the Hedgehog CD (Japan)")
+
+    def test_the_cd_case_gets_the_box_art(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = a_disc(t, "x.cue", {"t.bin": segacd_track() * 4})
+            boxes = Path(t) / "pics" / gi.THUMBNAIL_SYSTEMS["segacd"] / "Named_Boxarts"
+            boxes.mkdir(parents=True)
+            (boxes / "Sonic The Hedgehog CD (Japan).png").write_bytes(b"png")
+            opt = BuildOptions(game=d.cue, pictures_dir=Path(t) / "pics", banner_style="cdcase")
+            fill_in(opt, d, "segacd")
+            self.assertEqual(opt.cover, boxes / "Sonic The Hedgehog CD (Japan).png")
+            opt = BuildOptions(game=d.cue, pictures_dir=Path(t) / "pics")                  # the frame needs none
+            fill_in(opt, d, "segacd")
+            self.assertIsNone(opt.cover)
 
 
 class FakeServer:

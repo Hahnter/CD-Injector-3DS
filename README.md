@@ -31,10 +31,13 @@ option.
 - **Fills itself in.** The game's title, publisher and year are filled in when the disc is recognised, and its
   picture too: from RetroArch's thumbnails on the PC, or downloaded with one click. See
   [Filled in for you](#filled-in-for-you).
-- **A Home Menu banner and icon that match NSUI's.** The banner puts your game's title screen in a frame, in full
-  color, with the Virtual Console title plate below, in the same place and style as NSUI's frame banners. The icon
-  gets the same silver border. Or use NSUI's 3D Genesis, PC Engine, TurboGrafx-16 or frame banner: point the app at
-  your copy of NSUI once and every game gets its picture and title on it. See [Your options](#your-options).
+- **Home Menu banners that stand out in 3D, with nothing else needed.** Two designs of the app's own, in full
+  color: your game's title screen set into a colored frame (laid out like NSUI's frame banners), or the game's cover
+  in a CD case with the disc sliding out. Each has the Virtual Console title plate, written NSUI's way or Nintendo's,
+  floating in front, so the banner stands out of the screen with the 3D slider up. The icon gets the silver border
+  NSUI gives its icons.
+- **Or NSUI's own 3D banners:** point the app at your copy of NSUI once and every game gets its picture and title on
+  NSUI's Genesis, PC Engine, TurboGrafx-16 or frame banner. See [Your options](#your-options).
 
 NSUI (New Super Ultimate Injector) makes CIAs for cartridge consoles but not for these two CD systems. This app
 covers that gap.
@@ -80,19 +83,25 @@ All of these are in step 4. None of them are required.
 | --- | --- |
 | Game title, Publisher, Year | Shown on the banner's plate and under the icon on the Home Menu. Filled in for you when the game is recognised (see below), else the title comes from the file name; change any of them if you like. Titles in any language work, Japanese included. |
 | Picture | A title screen or box art. It becomes the picture on the banner and the icon. Found for you in RetroArch's thumbnails when they're on the PC. |
-| Banner: *Title screen in a colored frame* | Makes the banner from your picture. Pick the frame color from the swatches, choose **Custom...** for any color, or **Reset** for the console's own (orange for PC Engine CD, blue for Sega CD). |
-| Banner: *3D banner from NSUI* | Uses a banner and icon you exported from NSUI. See below. |
-| More options... | How the picture fits the icon, your own banner sound, and the font used on the title plate. |
+| Banner: *Frame* | Your picture set into a colored frame. Pick the frame color from the swatches, choose **Custom...** for any color, or **Reset** for the console's own (orange for PC Engine CD, blue for Sega CD). |
+| Banner: *CD case* | The game's cover in a CD case, with the disc sliding out and the title screen printed on the disc. The cover is the game's box art, found or downloaded like the picture, or chosen next to **Cover**; without one, the picture is used. |
+| Banner: *3D banner from NSUI* | Uses NSUI's 3D banners, made from your copy of NSUI or exported from it. See below. |
+| More options... | How the picture fits the icon, how the plate's text is written (NSUI's way or Nintendo's), your own banner sound, and the font used on the title plate. |
 
-The preview in the window shows the banner and icon as they'll look on the top screen. The frame, the picture and
-the title plate have the same size and place as in NSUI's frame banners, so a CD game sits well next to your GBA, NES
-or Genesis ones. The banner is stored in full color (8 bits per channel; bannertool's own banners have 4).
+The preview in the window shows the banner and icon as they'll look on the top screen. Both of the app's own banners
+are stored in full color (8 bits per channel; bannertool's own banners have 4) and are made of layers at different
+depths, like NSUI's 3D banners: with the 3D slider up, the plate floats in front and the rest sits behind it.
 
-- **The picture** fills the frame's window. A title screen at a console's own resolution (256 x 224, 320 x 224 and
-  so on) is first stretched to the 4:3 shape a TV gave it, and a 4:3 picture loses a little at the top and bottom
-  (about 7% each) to fill the window, which is as wide as a GBA screen.
+- **Frame.** The frame, the picture and the title plate have the same size and place as in NSUI's frame banners, so
+  a CD game sits well next to your GBA, NES or Genesis ones. The picture is set a little behind the frame. A title
+  screen at a console's own resolution (256 x 224, 320 x 224 and so on) is first stretched to the 4:3 shape a TV gave
+  it, and a 4:3 picture loses a little at the top and bottom (about 7% each) to fill the window, which is as wide as
+  a GBA screen.
+- **CD case.** The case takes the cover's shape: square for a jewel case (PC Engine CD and Japanese Mega-CD covers),
+  taller for the long cases of American Sega CD games. The disc sits behind the case.
 - **The title plate** matches NSUI's: its badge, rim and face, the title in Arial Bold at 11 pt on one or two lines
-  (8.5 pt when it needs three), and "Released: year" below.
+  (8.5 pt when it needs three), and "Released: year" below. Or, with **Plate text > Official style**, the text is laid
+  out like Nintendo's own Virtual Console banners (see [More options](#more-options)).
 - **The icon** is your picture inside the silver Virtual Console border NSUI gives its icons.
 
 ### Filled in for you
@@ -107,6 +116,7 @@ replaces anything you typed or chose, and recognising the disc never goes online
 - **The picture** comes from RetroArch's thumbnails when RetroArch is on the PC (a title screen if there is one, else
   a screenshot, else box art), or from a folder of your own pictures named after the games (**More options >
   Pictures folder**).
+- **The cover** for the CD case banner is the game's box art, found and downloaded the same way.
 - **Or download it:** press **Download** next to the picture, and the app fetches the game's picture from libretro's
   thumbnails, the collection RetroArch and NSUI use. To do that for every game that has no picture on the PC, turn it
   on in **More options**. Each picture is downloaded once and kept with the app's settings.

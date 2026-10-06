@@ -28,6 +28,8 @@ option.
 - **Self-contained.** The whole CD image (every track, CD audio included) and the BIOS go inside the CIA.
 - **Boots straight into the game.** Saves go to `sdmc:/emus3ds/saves/<game>/`, including when you close the game
   from HOME.
+- **Fills itself in.** The game's title, publisher and year are filled in when the disc is recognised, and its
+  picture too when RetroArch's thumbnails are on the PC. Nothing goes online. See [Filled in for you](#filled-in-for-you).
 - **A Home Menu banner and icon that match NSUI's.** The banner puts your game's title screen in a frame, in full
   color, with the Virtual Console title plate below, in the same place and style as NSUI's frame banners. The icon
   gets the same silver border. Or use NSUI's 3D PC Engine, Genesis or frame banner as a template: export it once
@@ -75,8 +77,8 @@ All of these are in step 4. None of them are required.
 
 | Option | What it does |
 | --- | --- |
-| Game title, Publisher, Year | Shown on the banner's plate and under the icon on the Home Menu. The title is filled in from the file name; change it if you like. Titles in any language work, Japanese included. |
-| Picture | A title screen or box art. It becomes the picture on the banner and the icon. |
+| Game title, Publisher, Year | Shown on the banner's plate and under the icon on the Home Menu. Filled in for you when the game is recognised (see below), else the title comes from the file name; change any of them if you like. Titles in any language work, Japanese included. |
+| Picture | A title screen or box art. It becomes the picture on the banner and the icon. Found for you in RetroArch's thumbnails when they're on the PC. |
 | Banner: *Title screen in a colored frame* | Makes the banner from your picture. Pick the frame color from the swatches, choose **Custom...** for any color, or **Reset** for the console's own (orange for PC Engine CD, blue for Sega CD). |
 | Banner: *3D banner from NSUI* | Uses a banner and icon you exported from NSUI. See below. |
 | More options... | How the picture fits the icon, your own banner sound, and the font used on the title plate. |
@@ -91,6 +93,25 @@ or Genesis ones. The banner is stored in full color (8 bits per channel; bannert
 - **The title plate** matches NSUI's: its badge, rim and face, the title in Arial Bold at 11 pt on one or two lines
   (8.5 pt when it needs three), and "Released: year" below.
 - **The icon** is your picture inside the silver Virtual Console border NSUI gives its icons.
+
+### Filled in for you
+
+When you choose a game, the app works out which disc it is and fills in the title, publisher and year. It never
+replaces anything you typed or chose, and it never goes online.
+
+- **Sega CD** discs carry their own serial number and year, so they're recognised whatever the files are called.
+- **PC Engine CD** discs carry no such details. They're recognised by their data track (its size and checksum, as
+  listed by Redump) or by their `.cue` name when it's the disc's Redump name. A patched or fan-translated disc isn't
+  in the lists, so its title comes from the file name.
+- **The picture** comes from RetroArch's thumbnails when RetroArch is on the PC (a title screen if there is one, else
+  a screenshot, else box art), or from a folder of your own pictures named after the games (**More options >
+  Pictures folder**).
+
+The details come from the lists of [Redump](http://redump.org/) (via libretro's database) and MAME, which come with
+the app. They cover about 560 PC Engine CD and 580 Sega CD discs. You can turn filling in off in **More options**.
+
+**Making a game you made before?** The CIA's title ID and its save folder come from the title. If the title filled
+in now differs from the one you used then, type the old one to update that copy and keep its saves.
 
 ### A banner and icon from NSUI
 
@@ -250,6 +271,9 @@ with credit. The download also bundles other people's work, which keeps its own 
 - **PicoDrive** by notaz, irixxxx and contributors
 - **bannertool** by Steveice10 (MIT)
 - **makerom** by 3DSGuy, applestash and Jakcron (MIT)
+
+The list of games the app recognises (`cdinjector/gamelist.py`) comes from libretro's database (CC BY-SA 4.0) and
+MAME's software lists (CC0), and is shared under CC BY-SA 4.0.
 
 PicoDrive's license means the **download as a whole is free and non-commercial**, and every release includes the
 complete emulator source. The MIT license covers this project's own code only and doesn't change those terms. See

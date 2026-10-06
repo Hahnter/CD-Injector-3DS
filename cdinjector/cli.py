@@ -21,7 +21,7 @@ def _build(a):
     opt = BuildOptions(game=a.game, bios=a.bios, title=a.title, publisher=a.publisher, year=a.year,
                        system=a.system, out_dir=a.out, image=a.image, icon_fit=a.icon_fit,
                        icon_file=a.icon_file, banner_file=a.banner_file, frame_color=color,
-                       sound_file=a.sound, plate_font=a.plate_font)
+                       sound_file=a.sound, plate_font=a.plate_font, lookup=not a.no_lookup, pictures_dir=a.pictures)
     last = [-1]
 
     def progress(frac, msg):
@@ -41,6 +41,10 @@ def _build(a):
         return 1
     print(f"\nbuilt   {cia}  ({cia.stat().st_size / 1048576:.1f} MB)")
     print(f"game    {opt.info['title']} - {opt.info['system']} - title ID {opt.info['title_id']}")
+    if opt.info.get("recognised"):
+        print(f"found   {opt.info['recognised']} (title, publisher and year filled in where you gave none)")
+    if opt.info.get("picture"):
+        print(f"picture {opt.info['picture']}")
     print(f"banner  {opt.info['banner_kind']}")
     for n in opt.info["notes"]:
         print(f"BIOS    {n}")
@@ -60,7 +64,7 @@ def main(argv=None):
     b = sub.add_parser("build", help="make a CIA from a PC Engine CD or Sega CD game")
     b.add_argument("game", type=Path, help="the game's .cue file, or its folder")
     b.add_argument("--bios", type=Path, help="BIOS file or folder (default: search near the game)")
-    b.add_argument("--title", default="", help="default: from the .cue file name")
+    b.add_argument("--title", default="", help="default: the recognised game's title, else from the .cue file name")
     b.add_argument("--publisher", default="")
     b.add_argument("--year", default="")
     b.add_argument("--image", type=Path, help="title screen for the banner and the icon")
@@ -72,6 +76,9 @@ def main(argv=None):
     b.add_argument("--banner-file", type=Path, help="use a ready-made banner (.bnr / NSUI banner .bin), or a picture")
     b.add_argument("--sound", type=Path, help=".wav or .bcwav banner sound")
     b.add_argument("--plate-font", type=Path, help="font file (.ttf) for the title plate's text")
+    b.add_argument("--pictures", type=Path, help="folder to find the game's picture in (default: RetroArch's thumbnails)")
+    b.add_argument("--no-lookup", action="store_true",
+                   help="don't fill in the title, publisher, year and picture from what the disc is recognised as")
     b.set_defaults(run=_build)
 
     a = ap.parse_args(argv)

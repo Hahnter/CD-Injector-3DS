@@ -13,7 +13,7 @@ from PIL import Image, ImageTk
 
 from . import APP_NAME, VERSION
 from . import banner as bn
-from . import nsui
+from . import gameinfo, nsui
 from .builder import BuildError, BuildOptions, build, check, clean_title, is_picture, resolve_cue
 from .disc import SYSTEMS
 
@@ -54,9 +54,11 @@ HELP = [
     ("p", "Then copy the .cia to your 3DS's SD card and install it with FBI: open FBI, choose SD, find the file, "
           "and choose Install CIA."),
     ("h2", "Your options (step 4)"),
-    ("b", "Game title, Publisher, Year: shown on the banner and under the icon. The title is filled in from the "
-          "file name, and you can change it."),
-    ("b", "Picture: a title screen or box art. It becomes the picture on the banner and the icon."),
+    ("b", "Game title, Publisher, Year: shown on the banner and under the icon. They're filled in for you when the "
+          "game is recognised (Sega CD discs carry their own details; PC Engine CD and Sega CD discs are also looked "
+          "up in lists that come with the app), else the title comes from the file name. Change any of them."),
+    ("b", "Picture: a title screen or box art. It becomes the picture on the banner and the icon. It's found for you "
+          "in RetroArch's thumbnails when they're on this PC, or in your own pictures folder (More options)."),
     ("b", "Banner: \"Title screen in a colored frame\" makes a banner from your picture in the same layout as "
           "NSUI's frame banners, and you choose the frame color. \"3D banner from NSUI\" uses a banner you exported "
           "from NSUI (New Super Ultimate Injector): a 3D console + TV (say PC Engine for PC Engine CD games and "
@@ -68,7 +70,8 @@ HELP = [
     ("h2", "Good to know"),
     ("b", "The CIA is about as big as the disc. FBI needs that much free space again while installing, and you "
           "can delete the .cia afterwards."),
-    ("b", "Making the same game again keeps its ID, so installing it again updates the earlier copy."),
+    ("b", "Making the same game again with the same title keeps its ID, so installing it again updates the earlier "
+          "copy and keeps its saves. If you made it with an older version, check the title is the one you used then."),
     ("b", "Saves go to sdmc:/emus3ds/saves/<game>/ on the SD card."),
     ("b", "If a game freezes or glitches, touch the bottom screen for the emulator menu and try the other CPU Core "
           "setting (PC Engine CD). It is remembered per game."),
@@ -95,6 +98,22 @@ ABOUT = [
     ("p", "Not affiliated with or endorsed by Nintendo, Sega or NEC. No games or BIOS files are included. Never "
           "share the CIAs you make."),
 ]
+
+
+PICTURE_HINT = "a title screen or box art"
+
+
+def lookup(disc, system, pictures_dir=None):
+    """{"info": GameInfo, "picture": path or None} for a checked disc (see gameinfo); never fails."""
+    try:
+        info = gameinfo.identify(disc, system)
+    except (OSError, ValueError):
+        info = gameinfo.GameInfo()
+    try:
+        picture = gameinfo.find_picture(system, [info.name, disc.cue.stem], gameinfo.thumbnail_folders(pictures_dir))
+    except OSError:
+        picture = None
+    return dict(info=info, picture=picture)
 
 
 class Tooltip:
@@ -137,6 +156,7 @@ class App(tk.Tk):
         self.busy = False
         self.ready = False
         self.image = None
+        self._auto = {}                                    # what was last filled in automatically, field by field
         self._photos = {}
         self._check_job = None
         self._check_seq = 0
@@ -251,7 +271,8 @@ class App(tk.Tk):
         ib.grid(row=2, column=1, sticky="w", padx=8, pady=(6, 2))
         ttk.Button(ib, text="Choose a picture…", command=self.pick_image).pack(side="left")
         ttk.Button(ib, text="Clear", command=self.clear_image).pack(side="left", padx=(4, 0))
-        ttk.Label(ib, text="a title screen or box art", style="Hint.TLabel").pack(side="left", padx=(8, 0))
+        self.l_picture = ttk.Label(ib, text=PICTURE_HINT, style="Hint.TLabel")
+        self.l_picture.pack(side="left", padx=(8, 0))
 
         ttk.Label(left, text="Banner").grid(row=3, column=0, sticky="w", pady=(8, 2))
         self.v_style = tk.StringVar(value=STYLES[1] if self.settings.get("banner_style") == "nsui" else STYLES[0])
@@ -306,6 +327,10 @@ class App(tk.Tk):
         for var in (self.v_fit, self.v_sound, self.v_font):
             var.trace_add("write", lambda *a: self._schedule_preview())
         self.v_font.trace_add("write", lambda *a: self._remember_font())
+        self.v_autofill = tk.BooleanVar(value=self.settings.get("autofill", "on") != "off")
+        self.v_pictures = tk.StringVar(value=self.settings.get("pictures_dir", ""))
+        self.v_autofill.trace_add("write", lambda *a: self._remember("autofill", "on" if self.v_autofill.get() else "off"))
+        self.v_pictures.trace_add("write", lambda *a: self._remember("pictures_dir", self.v_pictures.get().strip()))
 
         # the preview: banner and icon as they'll look on the Home Menu
         prev = ttk.Frame(cols)
@@ -456,7 +481,22 @@ class App(tk.Tk):
             ttk.Button(f, text="Clear", command=lambda v=var: v.set("")).grid(row=r, column=3, padx=(4, 0))
             ttk.Label(f, text=note, style="Hint.TLabel", wraplength=560, justify="left").grid(
                 row=r + 1, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
-        ttk.Button(f, text="Close", command=win.destroy).grid(row=6, column=3, sticky="e", pady=(4, 0))
+        ttk.Label(f, text="Fill in", style="Step.TLabel").grid(row=6, column=0, sticky="w")
+        ttk.Checkbutton(f, text="The title, publisher, year and picture, when the game is recognised",
+                        variable=self.v_autofill).grid(row=6, column=1, columnspan=3, sticky="w", padx=8)
+        ttk.Label(f, text="Sega CD discs carry their own details; PC Engine CD and Sega CD discs are also looked up in "
+                          "the lists of Redump and MAME that come with the app. Nothing goes online, and anything you "
+                          "type yourself is never replaced.", style="Hint.TLabel", wraplength=560,
+                  justify="left").grid(row=7, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
+        ttk.Label(f, text="Pictures folder", style="Step.TLabel").grid(row=8, column=0, sticky="w")
+        ttk.Entry(f, textvariable=self.v_pictures, width=52).grid(row=8, column=1, sticky="ew", padx=8)
+        ttk.Button(f, text="Choose…", command=self._pick_pictures).grid(row=8, column=2)
+        ttk.Button(f, text="Clear", command=lambda: self.v_pictures.set("")).grid(row=8, column=3, padx=(4, 0))
+        ttk.Label(f, text="Where to look for each game's picture: RetroArch's thumbnails folder, or your own folder of "
+                          "pictures named after the games. Empty means RetroArch's thumbnails, if RetroArch is on this "
+                          "PC.", style="Hint.TLabel", wraplength=560,
+                  justify="left").grid(row=9, column=1, columnspan=3, sticky="w", padx=8, pady=(0, 10))
+        ttk.Button(f, text="Close", command=win.destroy).grid(row=10, column=3, sticky="e", pady=(4, 0))
         win.bind("<Escape>", lambda e: win.destroy())
         win.grab_set()
         win.focus_set()
@@ -503,6 +543,15 @@ class App(tk.Tk):
         self._apply_style()
         self._update_export()
         self.refresh_preview()
+
+    def _remember(self, key, value):
+        self.settings[key] = value
+        self._save_settings()
+
+    def _pick_pictures(self):
+        p = filedialog.askdirectory(title="Folder with the games' pictures", initialdir=self.v_pictures.get() or None)
+        if p:
+            self.v_pictures.set(p)
 
     def _remember_font(self):
         self.settings["plate_font"] = self.v_font.get().strip()
@@ -570,10 +619,12 @@ class App(tk.Tk):
         p = filedialog.askopenfilename(title="Title screen or box art", filetypes=IMAGE_TYPES)
         if p:
             self.image = p
+            self.l_picture.config(text=PICTURE_HINT)
             self.refresh_preview()
 
     def clear_image(self):
         self.image = None
+        self.l_picture.config(text=PICTURE_HINT)
         self.refresh_preview()
 
     def pick_out(self):
@@ -607,15 +658,18 @@ class App(tk.Tk):
         opt = BuildOptions(game=Path(game), bios=Path(self.v_bios.get()) if self.v_bios.get().strip() else None,
                            system=self.system_choice())
         self.l_game.config(text="Checking…", foreground=MUTED)
-        threading.Thread(target=self._run_check, args=(opt, self._check_seq), daemon=True).start()
+        look = (self.v_autofill.get(), self.v_pictures.get().strip() or None)       # read here: Tk isn't thread-safe
+        threading.Thread(target=self._run_check, args=(opt, self._check_seq, look), daemon=True).start()
 
-    def _run_check(self, opt, seq):
+    def _run_check(self, opt, seq, look=(False, None)):
         result = {}
         try:
             cue = resolve_cue(opt.game)
             result["cue"] = cue
             disc, system, bios_files, notes = check(opt)
             result.update(disc=disc, system=system, notes=notes)
+            if look[0]:
+                result.update(lookup(disc, system, look[1]))
         except BuildError as e:
             result["error"] = str(e)
         except Exception as e:                                   # a check must always answer, or the window waits for ever
@@ -628,8 +682,10 @@ class App(tk.Tk):
             self.l_game.config(foreground=OK, text=f"✓ {SYSTEMS[r['system']]['name']} game found · "
                                                     f"{len(disc.tracks)} files · {disc.total_bytes / 1048576:.0f} MB")
             self.l_bios.config(foreground=OK, text="✓ " + "  ·  ".join(r["notes"]))
-            if not self.v_title.get() and "cue" in r:
-                self.v_title.set(clean_title(r["cue"].stem))
+            info = r.get("info")
+            if info and info.name:
+                self.l_game.config(text=self.l_game.cget("text") + f" · recognised: {info.name}")
+            self._fill_in(r, info)
             self._game_ok = True
             self.ready = True
         else:
@@ -646,6 +702,22 @@ class App(tk.Tk):
         self._update_steps()
         self._update_export()
         self.refresh_preview()
+
+    def _fill_in(self, r, info):
+        """Fill in the title, publisher, year and picture for the game just checked. A field is filled only while it's
+        empty or still holds what was filled in for the previous game, so nothing typed or chosen is ever replaced."""
+        info = info or gameinfo.GameInfo()
+        new = dict(title=info.title or (clean_title(r["cue"].stem) if "cue" in r else ""), publisher=info.publisher,
+                   year=info.year, picture=str(r["picture"]) if r.get("picture") else None)
+        for key, var in (("title", self.v_title), ("publisher", self.v_pub), ("year", self.v_year)):
+            if not var.get().strip() or var.get() == self._auto.get(key):
+                var.set(new[key])
+        if not self.image or self.image == self._auto.get("picture"):
+            self.image = new["picture"]
+            found = Path(new["picture"]).stem if new["picture"] else ""
+            self.l_picture.config(text=f"found automatically: {found[:30] + '…' if len(found) > 31 else found}"
+                                  if found else PICTURE_HINT)
+        self._auto = new
 
     def _update_export(self):
         missing = self.ready and self.nsui_mode() and not self.v_banner_file.get().strip()

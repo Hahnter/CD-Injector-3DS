@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0 (unreleased)
+
+- **Filled in for you.** Choosing a game fills in its title, publisher and year when the disc is recognised: Sega CD
+  discs by the serial number on the disc, PC Engine CD discs by their data track or `.cue` name, using lists from
+  Redump (via libretro's database) and MAME that come with the app. The picture is found in RetroArch's thumbnails,
+  or in a folder of your own (**More options > Pictures folder**). Nothing goes online, and nothing you typed is
+  replaced. The command line does the same for whatever you don't give it (`--no-lookup` turns it off, `--pictures`
+  names the folder).
+- **Remaking a game you made before:** the title filled in may differ from the one you used (it used to come from
+  the file name). The title ID and save folder come from the title, so type the old title to update that copy.
+
 ## 1.1.0 (2026-10-06)
 
 Banners and icons now match the ones NSUI makes, so a CD game looks at home next to your GBA, NES and Genesis games

@@ -11,7 +11,9 @@
 - **Download the picture.** A **Download** button next to the picture fetches the game's title screen (or screenshot,
   or box art) from libretro's thumbnails, the collection RetroArch and NSUI use. **More options** can do it for every
   game with no picture on the PC (off by default); the command line has `--download-picture`. This is the only time
-  the app goes online, and each picture is downloaded once and kept with the app's settings.
+  the app goes online, and each picture is downloaded once and kept with the app's settings. A game whose picture
+  libretro keeps under a slightly different name ("Sonic The Hedgehog CD", or "Dune (USA)" for a disc called
+  "Dune (USA) (En,Fr,De,Es,It)") is found too.
 - **NSUI's banners straight from NSUI.** Point the app at your copy of NSUI once (**From NSUI > Make**, or `--nsui`
   on the command line) and it makes NSUI's 3D banners from the parts inside NSUI's program, the way NSUI does: the
   Genesis for Sega CD games; the PC Engine, the TurboGrafx-16, or both by region (PC Engine on Japanese 3DS systems)

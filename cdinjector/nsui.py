@@ -250,15 +250,29 @@ def plate_texture(title, year, font_file=None):
     return Image.merge("LA", (lum, alpha))
 
 
-def retitled_plate(plate, title, year, font_file=None):
-    """A frame banner's own plate (luminance + alpha) with this game's title and year in place of the old ones. The
-    badge and rim stay NSUI's; the text area is wiped with the plate's own face, taken from the clean column just
-    left of it."""
+def _wiped(plate):
+    """A plate (luminance + alpha) as RGBA with its text area wiped with the plate's own face, taken from the clean
+    column just left of it. The badge and rim stay as they were."""
     from PIL import Image
     x0, y0, x1, y1 = TEXT_AREA
     rgba = Image.merge("RGBA", (plate.getchannel(0),) * 3 + (plate.getchannel(1),))
     face = rgba.crop((x0 - 1, y0, x0, y1))
     rgba.paste(face.resize((x1 - x0, y1 - y0), Image.NEAREST), (x0, y0))
+    return rgba
+
+
+def wiped_plate(plate):
+    """A plate (luminance + alpha) with no text on it: just the badge, the rim and the face."""
+    from PIL import Image
+    rgba = _wiped(plate)
+    return Image.merge("LA", (rgba.convert("L"), rgba.getchannel("A")))
+
+
+def retitled_plate(plate, title, year, font_file=None):
+    """A banner's own plate (luminance + alpha) with this game's title and year in place of the old ones. The badge
+    and rim stay NSUI's."""
+    from PIL import Image
+    rgba = _wiped(plate)
     rgba.alpha_composite(bn.plate_text(title, year, S=4, font_file=font_file).reduce(4))
     return Image.merge("LA", (rgba.convert("L"), rgba.getchannel("A")))
 

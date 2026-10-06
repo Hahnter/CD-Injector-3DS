@@ -7,11 +7,20 @@ in row order with Z-order (Morton) pixels inside each block, top row first.
 import struct
 
 PICA_RGBA8 = 0
+PICA_RGB8 = 1
+PICA_RGBA5551 = 2
 PICA_RGB565 = 3
+PICA_RGBA4 = 4
 PICA_LA8 = 5
 PICA_L8 = 7
+PICA_A8 = 8
+PICA_LA4 = 9
+PICA_L4 = 10
+PICA_A4 = 11
 PICA_ETC1 = 12
 PICA_ETC1A4 = 13
+BYTES_PER_TEXEL = {PICA_RGBA8: 4, PICA_RGB8: 3, PICA_RGBA5551: 2, PICA_RGB565: 2, PICA_RGBA4: 2, PICA_LA8: 2,
+                   PICA_L8: 1, PICA_A8: 1, PICA_LA4: 1, PICA_L4: 0.5, PICA_A4: 0.5, PICA_ETC1: 0.5, PICA_ETC1A4: 1}
 GL_UNSIGNED_BYTE = 0x1401
 
 
@@ -150,8 +159,7 @@ def _read_etc1(d, t, alpha):
 def read_texture(d, t):
     """The texture's picture (its largest size, for one with mipmaps)."""
     from PIL import Image
-    size = {PICA_RGBA8: 4, PICA_RGB565: 2, PICA_LA8: 2, PICA_L8: 1, PICA_ETC1: 0.5, PICA_ETC1A4: 1}.get(t["fmt"], 2)
-    _check_texture(d, t, size)
+    _check_texture(d, t, BYTES_PER_TEXEL.get(t["fmt"], 2))
     w, h, p = t["w"], t["h"], t["data"]
     if t["fmt"] == PICA_RGBA8:
         img = Image.new("RGBA", (w, h))
@@ -183,6 +191,39 @@ def read_texture(d, t):
         for x, y in _coords(w, h):
             px[x, y] = d[p]
             p += 1
+        return img
+    if t["fmt"] == PICA_RGB8:                              # stored B, G, R
+        img = Image.new("RGB", (w, h))
+        px = img.load()
+        for x, y in _coords(w, h):
+            px[x, y] = (d[p + 2], d[p + 1], d[p])
+            p += 3
+        return img
+    if t["fmt"] in (PICA_RGBA4, PICA_RGBA5551):
+        img = Image.new("RGBA", (w, h))
+        px = img.load()
+        for x, y in _coords(w, h):
+            v = struct.unpack_from("<H", d, p)[0]
+            p += 2
+            if t["fmt"] == PICA_RGBA4:
+                px[x, y] = ((v >> 12) * 17, ((v >> 8) & 15) * 17, ((v >> 4) & 15) * 17, (v & 15) * 17)
+            else:
+                px[x, y] = ((v >> 11) * 255 // 31, ((v >> 6) & 31) * 255 // 31, ((v >> 1) & 31) * 255 // 31,
+                            255 * (v & 1))
+        return img
+    if t["fmt"] in (PICA_A8, PICA_LA4):
+        img = Image.new("LA", (w, h))
+        px = img.load()
+        for x, y in _coords(w, h):
+            px[x, y] = (255, d[p]) if t["fmt"] == PICA_A8 else ((d[p] >> 4) * 17, (d[p] & 15) * 17)
+            p += 1
+        return img
+    if t["fmt"] in (PICA_L4, PICA_A4):                     # two texels a byte, the first in the low half
+        img = Image.new("LA", (w, h))
+        px = img.load()
+        for i, (x, y) in enumerate(_coords(w, h)):
+            v = (d[p + i // 2] >> (4 * (i & 1))) & 15
+            px[x, y] = (v * 17, 255) if t["fmt"] == PICA_L4 else (255, v * 17)
         return img
     raise CGFXError(f"texture format {t['fmt']} not supported")
 
@@ -266,21 +307,37 @@ def cbmd_common(data):
     return start, later[0] if later else len(data)
 
 
-def cbmd_replace_common(data, model):
-    """The banner `data` with its main 3D model replaced by `model` (an uncompressed CGFX). Only that block is
-    rewritten: the language models and the sound keep their bytes and move along by whole 32-byte steps, so each
-    stays as aligned as it was."""
+def cbmd_replace(data, models):
+    """The banner `data` with some of its 3D models replaced: `models` maps a model's offset in the banner (the main
+    one's or a language one's) to its new, uncompressed CGFX. Only those blocks are rewritten: everything else keeps
+    its bytes and moves along by whole 32-byte steps, so each part stays as aligned as it was."""
     if bytes(data[:4]) != b"CBMD" or len(data) < CBMD_HEADER:
         raise CGFXError("not a 3DS banner")
-    start, end = cbmd_common(data)
-    comp = lz11_compress(bytes(model))
-    comp += bytes((-(len(comp) - (end - start))) % 32)
-    delta = len(comp) - (end - start)
     words = list(struct.unpack_from("<%dI" % (CBMD_HEADER // 4), data, 0))
-    for i in range(3, CBMD_HEADER // 4):
-        if words[i] and words[i] > start:
-            words[i] += delta
-    return struct.pack("<%dI" % (CBMD_HEADER // 4), *words) + bytes(data[CBMD_HEADER:start]) + comp + bytes(data[end:])
+    starts = sorted({w for w in words[2:] if w})
+    if not starts or starts[0] < CBMD_HEADER or starts[-1] > len(data) or any(o not in starts for o in models):
+        raise CGFXError("the banner's header doesn't fit the file")
+    out, moved = bytearray(data[:starts[0]]), {}
+    for i, start in enumerate(starts):
+        end = starts[i + 1] if i + 1 < len(starts) else len(data)
+        moved[start] = len(out)
+        if start in models:
+            comp = lz11_compress(bytes(models[start]))
+            out += comp + bytes((-(len(comp) - (end - start))) % 32)
+        else:
+            out += data[start:end]
+    for i in range(2, CBMD_HEADER // 4):
+        if words[i]:
+            words[i] = moved[words[i]]
+    struct.pack_into("<%dI" % (CBMD_HEADER // 4), out, 0, *words)
+    return bytes(out)
+
+
+def cbmd_replace_common(data, model):
+    """The banner `data` with its main 3D model replaced by `model` (an uncompressed CGFX); see cbmd_replace."""
+    if bytes(data[:4]) != b"CBMD" or len(data) < CBMD_HEADER:
+        raise CGFXError("not a 3DS banner")
+    return cbmd_replace(data, {cbmd_common(data)[0]: model})
 
 
 def lz11_decompress(src, max_size=MAX_MODEL):

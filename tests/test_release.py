@@ -1,5 +1,6 @@
 """Checks on the release notes made from the changelog."""
 
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -49,6 +50,33 @@ class ReleaseNotesTests(unittest.TestCase):
     def test_the_changelog_has_a_section_for_this_version(self):
         text = (Path(__file__).resolve().parents[1] / "CHANGELOG.md").read_text(encoding="utf-8")
         self.assertIn(f"## {VERSION} (", text)
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class PinTests(unittest.TestCase):
+    """bannertool.exe is the author's release file, checked against SHA-256 sums pinned in two places that must agree."""
+
+    def setUp(self):
+        self.script = (ROOT / "scripts" / "build_emulators.sh").read_text(encoding="utf-8")
+        self.flow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+    def test_the_build_script_and_the_workflow_pin_the_same_files(self):
+        for script_name, flow_name in (("BANNERTOOL_ZIP_SHA", "BANNERTOOL_ZIP_SHA256"),
+                                       ("BANNERTOOL_WIN_SHA", "BANNERTOOL_EXE_SHA256")):
+            in_script = re.search(rf"^{script_name}=(\S+)$", self.script, re.M).group(1)
+            in_flow = re.search(rf"^\s+{flow_name}: (\S+)$", self.flow, re.M).group(1)
+            self.assertRegex(in_script, r"^[0-9a-f]{64}$")
+            self.assertEqual(in_script, in_flow, script_name)
+        tag = re.search(r'^\s+BANNERTOOL_TAG: "([^"]+)"$', self.flow, re.M).group(1)
+        self.assertIn(f"/diasurgical/bannertool/releases/download/{tag}/bannertool.zip", self.script)
+
+    def test_a_release_is_only_published_from_main(self):
+        self.assertIn("PUBLISH: ${{ inputs.publish && github.ref == 'refs/heads/main' }}", self.flow)
+        publish = self.flow.split("- name: Publish", 1)[1]
+        self.assertIn("if: env.PUBLISH == 'true'", publish.split("run:", 1)[0])
+        self.assertIn("default: false", self.flow)                  # a run started without ticking "publish" only builds
 
 
 if __name__ == "__main__":

@@ -2,17 +2,24 @@
 # Builds everything CD Injector 3DS bundles into resources/:
 #   resources/cores/{temperpce,picodrive}/  patched emulator ELF + RSF + RomFS assets
 #   resources/tools/linux/                  makerom (official release), bannertool
-#   resources/tools/windows/                makerom.exe (official release), bannertool.exe (cross-compiled)
+#   resources/tools/windows/                makerom.exe and bannertool.exe (both the authors' own releases)
 #   dist/emulator-source.tar.gz             complete patched emulator source (PicoDrive license)
 #
-# Needs: Linux or WSL with devkitPro (3ds-dev, 3ds-zlib), git, make, gettext, curl, unzip,
-#        g++-mingw-w64-x86-64 (for bannertool.exe).
+# Needs: Linux or WSL with devkitPro (3ds-dev, 3ds-zlib), git, make, gettext, curl, unzip. With
+#        BANNERTOOL_WIN_FROM_SOURCE=1, bannertool.exe is compiled here instead of downloaded, which also needs
+#        g++-mingw-w64-x86-64.
 set -euo pipefail
 
 FORK_URL=https://github.com/R-YaTian/emus3ds.git
 FORK_COMMIT=a10138fc13c2c90e2a520f5717be002d932d87c0   # the patch is written against this
 BANNERTOOL_URL=https://github.com/diasurgical/bannertool.git
 BANNERTOOL_COMMIT=16d8c5a0ce02a5e06e64ab42275132fca57c04a2   # the exact version that was built and tested
+# bannertool.exe: the author's release build of the same code (its Windows files are from 2021 and many people have
+# downloaded them), checked against these SHA-256 sums before use. The program code hasn't changed since 2020: run with
+# BANNERTOOL_WIN_FROM_SOURCE=1 to compile it from the commit above instead, which gives the same banners.
+BANNERTOOL_RELEASE=https://github.com/diasurgical/bannertool/releases/download/1.2.0/bannertool.zip
+BANNERTOOL_ZIP_SHA=69768596f836acb3e3aeaa66e47c6ba560dde813c6dfcd33c8afc25fe29b7524
+BANNERTOOL_WIN_SHA=62a20363f7cdebd7a9564beb52dc0ae80838ca35d9f35166d5a632a0844c93d4
 # makerom: the official release (MIT), checked against these SHA-256 sums before use
 MAKEROM_RELEASE=https://github.com/3DSGuy/Project_CTR/releases/download/makerom-v0.18.4
 MAKEROM_WIN_ZIP=makerom-v0.18.4-win_x86_64.zip
@@ -66,7 +73,9 @@ done
 git -C "$WORK/bannertool" fetch -q origin
 git -C "$WORK/bannertool" checkout -q -f "$BANNERTOOL_COMMIT"
 git -C "$WORK/bannertool" submodule update -q --init --recursive
-for target in NATIVE WIN64; do
+targets="NATIVE"
+[ "${BANNERTOOL_WIN_FROM_SOURCE:-0}" = 1 ] && targets="NATIVE WIN64"
+for target in $targets; do
     echo "== building bannertool ($target)"
     make -C "$WORK/bannertool" clean >/dev/null 2>&1 || true
     make -C "$WORK/bannertool" TARGET=$target -j"$(nproc)" > "$WORK/bannertool-$target.log" 2>&1 || true   # zip step may fail
@@ -76,6 +85,18 @@ for target in NATIVE WIN64; do
         cp "$WORK/bannertool/output/windows-x86_64/bannertool.exe" "$RES/tools/windows/bannertool.exe"
     fi
 done
+
+if [ "${BANNERTOOL_WIN_FROM_SOURCE:-0}" != 1 ]; then
+    echo "== bannertool.exe (the author's release, hash-checked)"
+    mkdir -p "$WORK/bannertool-release"
+    curl -fsSL -o "$WORK/bannertool-release.zip" "$BANNERTOOL_RELEASE"
+    echo "$BANNERTOOL_ZIP_SHA  $WORK/bannertool-release.zip" | sha256sum -c --quiet - \
+        || { echo "the bannertool download has the wrong SHA-256"; exit 1; }
+    unzip -o -q -d "$WORK/bannertool-release" "$WORK/bannertool-release.zip"
+    echo "$BANNERTOOL_WIN_SHA  $WORK/bannertool-release/windows-x86_64/bannertool.exe" | sha256sum -c --quiet - \
+        || { echo "bannertool.exe in the download has the wrong SHA-256"; exit 1; }
+    cp "$WORK/bannertool-release/windows-x86_64/bannertool.exe" "$RES/tools/windows/bannertool.exe"
+fi
 
 chmod +x "$RES/tools/linux/"*
 echo "== done"

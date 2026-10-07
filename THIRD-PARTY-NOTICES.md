@@ -96,7 +96,9 @@ to each release).
 ## Build tools bundled with the app
 
 ### bannertool
-Copyright (C) 2015-2017 Steveice10. Built from <https://github.com/diasurgical/bannertool>.
+Copyright (C) 2015-2017 Steveice10. The Windows `bannertool.exe` in the download is the build from the release at
+<https://github.com/diasurgical/bannertool/releases/tag/1.2.0> (its `bannertool.zip`, `windows-x86_64`), checked against
+a SHA-256 before use; the Linux one used for development is built from the same source.
 
 ```
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:

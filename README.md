@@ -261,8 +261,21 @@ remembered per game. If that doesn't help, please file a
 
 **Windows or my antivirus warns about the app. Is it safe?**
 The app isn't code-signed, so SmartScreen warns the first time (choose **More info**, then **Run anyway**).
-Some antivirus programs also flag apps packaged with PyInstaller by mistake. Compare the download with
-`SHA256SUMS.txt` from the release, and the full source is in this repository if you'd rather build it yourself.
+Some antivirus programs also flag apps packaged with PyInstaller by mistake, and a new unsigned program can set off a
+machine-learning detection such as `Trojan:Win32/Wacatac.B!ml`. That happened to the copy of `bannertool.exe` (one of
+the two helper programs, which makes the banner file) in 1.2.0, which was compiled for this project; 1.2.1 ships the
+tool author's own release build instead. Compare the download with `SHA256SUMS.txt` from the release, and the full
+source is in this repository if you'd rather build it yourself.
+
+The two helper programs come from their authors' releases and are checked against a SHA-256 before they go into the
+download (the pins are in `scripts/build_emulators.sh`):
+- `makerom.exe`, from the [Project_CTR release makerom-v0.18.4](https://github.com/3DSGuy/Project_CTR/releases/tag/makerom-v0.18.4):
+  `db810fb9c3d41ecaefa8fcbd13140ecafe9b95e6303cd9244c12a2bca70fa938`
+- `bannertool.exe`, from the [bannertool 1.2.0 release](https://github.com/diasurgical/bannertool/releases/tag/1.2.0)
+  (`windows-x86_64`): `62a20363f7cdebd7a9564beb52dc0ae80838ca35d9f35166d5a632a0844c93d4`
+
+If a scanner flags one, look its hash up on VirusTotal and please
+[open an issue](https://github.com/Hahnter/CD-Injector-3DS/issues/new/choose) with what it says.
 
 **How do I remove a game I installed?**
 In FBI, open **Titles**, pick the game and choose **Delete Title**. You can also use **System Settings > Data
@@ -309,18 +322,21 @@ Latin letters is stored as `Game <id>`. The name you typed still shows on the Ho
 
 ## Building from source
 
-1. **Emulators and tools** (Linux or WSL with devkitPro `3ds-dev` + `3ds-zlib`, `gettext`, `curl`, `unzip`,
-   `g++-mingw-w64-x86-64`): `scripts/build_emulators.sh`. It builds the patched emulators from a pinned emus3ds
-   commit, builds bannertool from a pinned commit, and downloads the official makerom release (checked against its
-   SHA-256).
+1. **Emulators and tools** (Linux or WSL with devkitPro `3ds-dev` + `3ds-zlib`, `gettext`, `curl`, `unzip`):
+   `scripts/build_emulators.sh`. It builds the patched emulators from a pinned emus3ds commit and the Linux
+   bannertool from a pinned commit, and downloads the official makerom release and the bannertool author's Windows
+   release (each checked against its SHA-256). With `BANNERTOOL_WIN_FROM_SOURCE=1` (which also needs
+   `g++-mingw-w64-x86-64`) it compiles the Windows bannertool from the pinned commit instead.
 2. **Windows app** (Python 3.10+ in a virtual environment; `pip install -r requirements-build.txt` pins Pillow and
    PyInstaller): `powershell -File scripts\build_windows.ps1 -Python .venv\Scripts\python.exe`. It runs the checks
    and tests first, then writes the app folder, the zip, the emulator source archive and `SHA256SUMS.txt`.
 
-Releases are built by the `release` workflow (**Actions > release > Run workflow**, on `main`). It packages the
-version in `cdinjector/__init__.py` with the notes from its section of `CHANGELOG.md`. While the emulators and tools
-are unchanged, it takes them from the last release built with them, checked against their SHA-256 (see the
-workflow).
+Releases are built by the `release` workflow (**Actions > release > Run workflow**). It packages the version in
+`cdinjector/__init__.py`. Started on a branch, or on `main` without **publish** ticked, it only builds the app and
+keeps it for a week as a download on the run's page, to try before releasing. Started on `main` with **publish**
+ticked, it also publishes the release, with the notes from the version's section of `CHANGELOG.md`. While the
+emulators and makerom are unchanged, it takes them from the last release built with them, and bannertool from its
+author's release, each checked against its SHA-256 (see the workflow).
 
 Run the tests on their own with `python -m unittest discover -s tests -t .`. See
 [CONTRIBUTING.md](CONTRIBUTING.md) before sending changes.

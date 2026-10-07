@@ -13,7 +13,8 @@
 - It writes only the CIA, temporary files (deleted when it finishes), one small settings file,
   `%APPDATA%\CD Injector 3DS\settings.json`, holding the paths and colors you chose, and the NSUI banners you make
   (in `%APPDATA%\CD Injector 3DS\nsui banners`).
-- It runs its two helper programs (`makerom` and `bannertool`) directly with a list of arguments, never through a
+- Both helper programs (`makerom` and `bannertool`) are their authors' own release builds, checked against a SHA-256
+  before they are packaged (see the README's FAQ). It runs them directly with a list of arguments, never through a
   shell, and stops them if they hang. They run inside a private work folder and only ever get plain relative file
   names made by the app, never a name taken from your files.
 

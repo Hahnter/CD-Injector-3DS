@@ -1,9 +1,21 @@
 # Changelog
 
-## Unreleased
+## 1.2.1 (2026-10-07)
 
-- The in-app help (**How to use**) describes the **Download** buttons, **Plate text** and filling in, and
-  says where the NSUI banners you make are kept.
+A small update after Windows Defender flagged one of the helper programs in the 1.2.0 download. Nothing about how the
+app works changes: banners and CIAs come out the same.
+
+- **A different `bannertool.exe`.** Defender flagged 1.2.0's copy as `Trojan:Win32/Wacatac.B!ml`, a machine-learning
+  guess that is a common false alarm on new, unsigned programs. That copy was compiled for this project; 1.2.1 ships
+  the tool author's own release build of the same program code instead, a file many people have downloaded, checked
+  against its SHA-256 before it goes into the download. We read the program's source and the file's imports: it uses no
+  networking, doesn't run other programs and doesn't touch the registry. The release's Linux build makes
+  byte-identical banners to a build from the source. The README's antivirus FAQ lists where each helper program comes
+  from, with checksums.
+- **The in-app help (How to use)** describes the **Download** buttons, **Plate text** and filling in, and says where
+  the NSUI banners you make are kept.
+- **Releases can be test-built first:** the `release` workflow only builds the app (kept as a download for a week)
+  unless **publish** is ticked on `main`.
 
 ## 1.2.0 (2026-10-06)
 

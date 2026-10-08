@@ -46,7 +46,7 @@ VSVersionInfo(
     StringStruct('FileDescription', '$Name'),
     StringStruct('FileVersion', '$Version'),
     StringStruct('InternalName', '$ExeName'),
-    StringStruct('LegalCopyright', 'Copyright (c) 2026 Hahnter. MIT License; bundled components keep their own licences.'),
+    StringStruct('LegalCopyright', 'Copyright (c) 2026 Hahnter. All rights reserved; bundled components keep their own licences.'),
     StringStruct('OriginalFilename', '$ExeName.exe'),
     StringStruct('ProductName', '$Name'),
     StringStruct('ProductVersion', '$Version')])]),
@@ -68,7 +68,7 @@ if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
 
 # Docs next to the .exe where people will see them, and the licences of everything packaged with it
 $App = "$DistPath\$ExeName"
-Copy-Item README.md, CHANGELOG.md, LICENSE, THIRD-PARTY-NOTICES.md, SECURITY.md $App
+Copy-Item README.md, CHANGELOG.md, THIRD-PARTY-NOTICES.md, SECURITY.md $App
 & $Python scripts\collect_licenses.py "$App\licenses"
 if ($LASTEXITCODE -ne 0) { throw "Couldn't collect the licence texts" }
 Copy-Item resources\fonts\OFL.txt "$App\licenses\M-PLUS-1p-OFL.txt"

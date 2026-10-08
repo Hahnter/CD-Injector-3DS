@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.2 (2026-10-08)
+
+A licensing update. Nothing about how the app works changes: banners and CIAs come out the same.
+
+- **CD Injector 3DS's own code is no longer MIT-licensed.** From this version on it is © 2026 Hahnter, all rights
+  reserved, and the download no longer includes a `LICENSE` file. The README, THIRD-PARTY-NOTICES.md, the in-app
+  **About** text and CONTRIBUTING.md say so. The bundled components (the emulators, bannertool, makerom and the plate
+  font) keep their own licenses, and the download as a whole stays free and non-commercial under PicoDrive's license.
+
 ## 1.2.1 (2026-10-07)
 
 A small update after Windows Defender flagged one of the helper programs in the 1.2.0 download. Nothing about how the

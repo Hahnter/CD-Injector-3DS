@@ -27,4 +27,4 @@ must fail with an ordinary error message. `tests/test_security.py` shows the pat
 
 Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-By contributing you agree that your code is released under the project's MIT License.
+By contributing you agree that Hahnter may use, change and distribute your contribution as part of this project.

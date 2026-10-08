@@ -101,9 +101,9 @@ ABOUT = [
     ("b", "Temper by Exophase, and PicoDrive by notaz, irixxxx and contributors"),
     ("b", "bannertool by Steveice10, and makerom by 3DSGuy"),
     ("h2", "Licence"),
-    ("p", "The app's own code is MIT-licensed. PicoDrive's licence, though, makes the download as a whole free "
-          "and non-commercial, and the complete source of the modified emulators is published with every release. "
-          "Full notices are in THIRD-PARTY-NOTICES.md and LICENSE, next to the app."),
+    ("p", "The app's own code is \u00a9 2026 Hahnter, all rights reserved. PicoDrive's licence makes the download "
+          "as a whole free and non-commercial, and the complete source of the modified emulators is published with "
+          "every release. Full notices are in THIRD-PARTY-NOTICES.md, next to the app."),
     ("p", "Not affiliated with or endorsed by Nintendo, Sega or NEC. No games or BIOS files are included. Never "
           "share the CIAs you make."),
 ]

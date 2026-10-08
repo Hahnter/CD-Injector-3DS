@@ -2,7 +2,6 @@
 
 [![Latest release](https://img.shields.io/github/v/release/Hahnter/CD-Injector-3DS)](https://github.com/Hahnter/CD-Injector-3DS/releases/latest)
 [![Checks](https://github.com/Hahnter/CD-Injector-3DS/actions/workflows/ci.yml/badge.svg)](https://github.com/Hahnter/CD-Injector-3DS/actions/workflows/ci.yml)
-[![License: MIT (app code)](https://img.shields.io/badge/license-MIT%20(app%20code)-blue)](LICENSE)
 
 Turn **PC Engine CD / TurboGrafx-CD** and **Sega CD / Mega CD** games into installable **3DS CIAs**. Each game
 gets its own Home Menu icon and banner, and everything it needs is packed inside the CIA.
@@ -343,8 +342,8 @@ Run the tests on their own with `python -m unittest discover -s tests -t .`. See
 
 ## Credits and licenses
 
-**CD Injector 3DS's own code is MIT-licensed** (see [LICENSE](LICENSE)): use it, change it and share it freely,
-with credit. The download also bundles other people's work, which keeps its own terms:
+**CD Injector 3DS's own code is © 2026 Hahnter, all rights reserved.** It is not released under an open-source
+license. The download also bundles other people's work, which keeps its own terms:
 
 - **emus3ds** by bubble2k16, continued by R-YaTian
 - **Temper** by Exophase
@@ -357,7 +356,7 @@ The list of games the app recognises (`cdinjector/gamelist.py`) comes from libre
 MAME's software lists (CC0), and is shared under CC BY-SA 4.0.
 
 PicoDrive's license means the **download as a whole is free and non-commercial**, and every release includes the
-complete emulator source. The MIT license covers this project's own code only and doesn't change those terms. See
+complete emulator source. See
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for the details.
 
 Not affiliated with or endorsed by Nintendo, Sega, NEC or the NSUI authors.

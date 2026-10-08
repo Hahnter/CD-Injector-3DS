@@ -3,9 +3,9 @@
 CD Injector 3DS bundles or builds on the following software. It includes **no**
 games or BIOS files.
 
-**This project's own code** (the Python app in `cdinjector/`, the scripts and the tests) is released under the MIT
-License (see `LICENSE`). Everything below is other people's work and keeps its own license. Because PicoDrive is
-included in every CIA, the complete download is free and non-commercial regardless of the MIT license on our code.
+**This project's own code** (the Python app in `cdinjector/`, the scripts and the tests) is © 2026 Hahnter, all
+rights reserved. Everything below is other people's work and keeps its own license. Because PicoDrive is included in
+every CIA, the complete download is free and non-commercial.
 
 **Banner artwork.** The frame, the title plate, the icon border and the banner
 sound are drawn or synthesised by the program. They contain no Nintendo, Sega,

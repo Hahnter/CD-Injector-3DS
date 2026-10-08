@@ -18,7 +18,7 @@ from cdinjector.disc import Disc  # noqa: E402
 from cdinjector.gamelist import DISCS  # noqa: E402
 
 
-def segacd_track(serial=b"GM G-6021  -00", made=b"(C)SEGA 1993.JUN", raw=True):
+def segacd_track(serial=b"GM G-6021  -00", made=b"(C)SEGA 1993.JUN", raw=True, regions=b"J"):
     """The start of a Sega CD data track: the system area, in a raw 2352-byte sector or a plain 2048-byte one."""
     area = bytearray(0x200)
     area[0:14] = b"SEGADISCSYSTEM"
@@ -26,6 +26,7 @@ def segacd_track(serial=b"GM G-6021  -00", made=b"(C)SEGA 1993.JUN", raw=True):
     area[0x110:0x120] = made.ljust(16)
     area[0x150:0x180] = b"SONIC THE HEDGEHOG-CD".ljust(48)
     area[0x180:0x18E] = serial.ljust(14)
+    area[0x1F0:0x200] = regions.ljust(16)
     if not raw:
         return bytes(area) + bytes(2048 - len(area))
     sector = bytearray(2352)
@@ -76,6 +77,50 @@ class IdentifyTests(unittest.TestCase):
                 info = gi.identify(d, "segacd")
                 self.assertEqual((info.title, info.publisher, info.year, info.found_by),
                                  ("Sonic the Hedgehog CD", "Sega", "1993", "header"))
+
+    def test_a_sega_cd_disc_from_its_own_region(self):
+        """The USA and European Sonic CD share serial 4407, and Redump lists only the European disc: a USA disc is
+        named for its own region (which is how libretro names its pictures), going by the regions in its header."""
+        for regions, name in ((b"U", "Sonic CD (USA)"), (b"4", "Sonic CD (USA)"), (b"E", "Sonic CD (Europe)"),
+                              (b"8", "Sonic CD (Europe)"), (b"JUE", "Sonic CD (Europe)"), (b"", "Sonic CD (Europe)")):
+            with self.subTest(regions=regions), tempfile.TemporaryDirectory() as t:
+                d = a_disc(t, "x.cue", {"t.bin": segacd_track(serial=b"GM MK-4407 -00", regions=regions)})
+                info = gi.identify(d, "segacd")
+                self.assertEqual((info.name, info.title, info.publisher, info.year, info.found_by),
+                                 (name, "Sonic CD", "Sega", "1993", "header"))
+
+    def test_a_disc_from_its_own_region_by_its_cue_name(self):
+        with tempfile.TemporaryDirectory() as t:
+            for cue, name in (("Sonic CD (USA).cue", "Sonic CD (USA)"), ("Sonic CD (Europe).cue", "Sonic CD (Europe)"),
+                              ("Sonic CD.cue", "Sonic CD (Europe)")):
+                d = a_disc(t, cue, {"t.bin": b"x" * 100})
+                info = gi.identify(d, "segacd")
+                self.assertEqual((info.name, info.title, info.found_by), (name, "Sonic CD", "name"), cue)
+
+    def test_a_listed_disc_from_its_own_region_wins(self):
+        """When Redump lists the game in the disc's region, that disc is the one; a verified track size wins over
+        everything."""
+        fake = {"segacd": ((4096, 1, "9999", "Some Game (Europe)", "Some Game (Europe)", "Maker E", "1994"),
+                           (6144, 2, "9999", "Some Game (USA)", "Some Game (USA)", "Maker U", "1993"),
+                           (0, 0, "9999", "", "Some Game (Japan)", "Maker J", "1992"))}
+        saved, gi.DISCS = gi.DISCS, fake
+        gi._INDEX.clear()
+        try:
+            with tempfile.TemporaryDirectory() as t:
+                for regions, size, name in ((b"U", 2048, "Some Game (USA)"), (b"E", 2048, "Some Game (Europe)"),
+                                            (b"J", 2048, "Some Game (Japan)"), (b"U", 4096, "Some Game (Europe)")):
+                    track = segacd_track(serial=b"GM MK-9999 -00", regions=regions, raw=False).ljust(size, b"\0")
+                    d = a_disc(t, "x.cue", {"t.bin": track})
+                    self.assertEqual(gi.identify(d, "segacd").name, name, (regions, size))
+        finally:
+            gi.DISCS = saved
+            gi._INDEX.clear()
+
+    def test_regions_in_names(self):
+        for name, regions in (("Sonic CD (USA)", {"U"}), ("Dune (Europe) (En,Fr,De)", {"E"}),
+                              ("Sonic the Hedgehog CD (USA, R1C)", {"U"}), ("Game (USA, Europe)", {"U", "E"}),
+                              ("Game (Brazil)", {"U"}), ("Game (Japan, Korea)", {"J"}), ("Game", set())):
+            self.assertEqual(gi.regions_of(name), regions, name)
 
     def test_an_unlisted_sega_cd_disc_still_gives_its_year(self):
         with tempfile.TemporaryDirectory() as t:

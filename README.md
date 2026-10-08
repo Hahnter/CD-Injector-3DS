@@ -356,7 +356,6 @@ The list of games the app recognises (`cdinjector/gamelist.py`) comes from libre
 MAME's software lists (CC0), and is shared under CC BY-SA 4.0.
 
 PicoDrive's license means the **download as a whole is free and non-commercial**, and every release includes the
-complete emulator source. See
-[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for the details.
+complete emulator source. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for the details.
 
 Not affiliated with or endorsed by Nintendo, Sega, NEC or the NSUI authors.

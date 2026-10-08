@@ -28,8 +28,8 @@ jobs:
     permissions:
       contents: write                        # to create the release and its tag
     env:
-      BASE_TAG: v1.1.0
-      BASE_ZIP_SHA256: 9bc4a32aab74e911b2cdb8b50312914213a33cfe4d0856ff4c6def004918ef86
+      BASE_TAG: v1.2.2
+      BASE_ZIP_SHA256: 8eb0a0f6606964a70ec807b179d2d622e4bb43aa9a8c3964169d3170912eef93
       BASE_SOURCE_SHA256: 7678fc4af2f1a642727ecfbce37b205a7aebdcaede648b2d09c318a621869a31
       BANNERTOOL_TAG: "1.2.0"
       BANNERTOOL_ZIP_SHA256: 69768596f836acb3e3aeaa66e47c6ba560dde813c6dfcd33c8afc25fe29b7524

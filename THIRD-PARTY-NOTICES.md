@@ -14,7 +14,7 @@ and the program draws them itself. The words "Virtual Console" on the title plat
 only describe the style; this project is not affiliated with or endorsed by
 Nintendo, Sega or NEC.
 
-**Fonts.** No font is bundled. The title plate uses Arial Bold (or the nearest match) from your system, or a font file you choose. Sony's SCE-PS3 Rodin fonts are proprietary and are not included.
+**Fonts.** The only font bundled is M PLUS 1p Bold, for the official-style title plate (see below). In NSUI style the title plate uses Arial Bold (or the nearest match) from your system, and either style can use a font file you choose. Sony's SCE-PS3 Rodin fonts are proprietary and are not included.
 
 **NSUI files.** If you choose a banner and icon exported from NSUI (New Super Ultimate Injector for 3DS), or point the app at NSUI's program file to make NSUI's banner from its parts, the app only reads the files you give it (and puts your picture and title into a copy, kept on your PC). It contains no NSUI code or assets, and a banner made this way carries NSUI's 3D model and tune, so don't share the CIAs you make.
 

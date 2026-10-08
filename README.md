@@ -112,7 +112,8 @@ depths, like NSUI's 3D banners: with the 3D slider up, the plate floats in front
 When you choose a game, the app works out which disc it is and fills in the title, publisher and year. It never
 replaces anything you typed or chose, and recognising the disc never goes online.
 
-- **Sega CD** discs carry their own serial number and year, so they're recognised whatever the files are called.
+- **Sega CD** discs carry their own serial number and year, so they're recognised whatever the files are called. When
+  the USA and European releases share a serial, the regions in the disc's header decide which one it is.
 - **PC Engine CD** discs carry no such details. They're recognised by their data track (its size and checksum, as
   listed by Redump) or by their `.cue` name when it's the disc's Redump name. A patched or fan-translated disc isn't
   in the lists, so its title comes from the file name.

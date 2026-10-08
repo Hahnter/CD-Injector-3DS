@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.3 (2026-10-08)
+
+A fix for recognising Sega CD games. Banners and CIAs are made the same way as before.
+
+- **Fixed: a Sega CD disc could be recognised as another region's release of the same game.** The USA and European
+  releases of many Sega CD games share a serial number, and when Redump lists only one of them, the app took that one
+  whatever the disc: a USA Sonic CD came up as "Sonic CD (Europe)", and the picture and box art it found or
+  downloaded were the European ones. The app now reads the regions a disc is made for from its header (or, without
+  one, from the `.cue` name) and names it for its own region, so a USA Sonic CD is "Sonic CD (USA)" and gets the USA
+  title screen and box art. A track size that Redump lists still decides it outright.
+- Sega's own discs, whose header gives the serial as `MK-4407`, are now found in the list when it gives the serial as
+  `4407`.
+
 ## 1.2.2 (2026-10-08)
 
 A licensing update. Nothing about how the app works changes: banners and CIAs come out the same.

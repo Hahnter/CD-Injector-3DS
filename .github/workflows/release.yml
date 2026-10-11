@@ -87,7 +87,7 @@ jobs:
         run: powershell -ExecutionPolicy Bypass -File scripts\build_windows.ps1
 
       - name: Keep the app as a download on this run's page
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: CD-Injector-3DS-${{ env.VERSION }}-${{ github.sha }}-windows
           path: dist/CD-Injector-3DS

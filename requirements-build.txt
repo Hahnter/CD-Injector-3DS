@@ -5,5 +5,5 @@ pyinstaller-hooks-contrib==2026.8
 altgraph==0.17.5
 pefile==2024.8.26
 packaging==26.3
-setuptools==84.0.0
+setuptools==84.2.1
 pywin32-ctypes==0.2.3; sys_platform == "win32"
